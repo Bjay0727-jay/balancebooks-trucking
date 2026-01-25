@@ -2,15 +2,17 @@ import { useState, useMemo } from 'react';
 
 // ============================================================================
 // BALANCEBOOKS FOR TRUCKING - Owner-Operator Financial Management
+// Enhanced with BalanceBooks branding, more whitespace, and IFTA exports
 // ============================================================================
 
-// Design System Colors
+// Design System Colors - Orange theme for Trucking
 const colors = {
   navyDark: '#0f172a',
   navy: '#1e3a5f',
   orange: '#f97316',
   orangeDark: '#ea580c',
   orangeLight: '#fdba74',
+  orangePale: '#fff7ed',
   teal: '#14b8a6',
   white: '#ffffff',
   gray50: '#f8fafc',
@@ -58,74 +60,68 @@ const formatNumber = (value, decimals = 0) => {
 };
 
 // ============================================================================
+// BALANCEBOOKS SHIELD LOGO COMPONENT
+// ============================================================================
+const BalanceBooksLogo = ({ size = 40 }) => (
+  <svg viewBox="0 0 100 100" width={size} height={size}>
+    <defs>
+      <linearGradient id="navyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" style={{stopColor:'#1e3a5f'}} />
+        <stop offset="100%" style={{stopColor:'#0f172a'}} />
+      </linearGradient>
+      <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" style={{stopColor:'#f97316'}} />
+        <stop offset="100%" style={{stopColor:'#ea580c'}} />
+      </linearGradient>
+    </defs>
+    <path d="M 50 5 L 92 18 L 92 55 C 92 78 73 92 50 98 C 27 92 8 78 8 55 L 8 18 Z" fill="url(#navyGrad)"/>
+    <path d="M 50 14 L 82 24 L 82 54 C 82 72 67 83 50 88 C 33 83 18 72 18 54 L 18 24 Z" fill="none" stroke="url(#orangeGrad)" strokeWidth="3"/>
+    <circle cx="50" cy="52" r="24" fill="url(#orangeGrad)"/>
+    <path d="M 36 52 L 46 62 L 66 42" fill="none" stroke="white" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+// ============================================================================
 // MAIN APP COMPONENT
 // ============================================================================
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [selectedCard, setSelectedCard] = useState(null);
 
-  // ========== FUEL LOG STATE ==========
-  const [fuelEntries, setFuelEntries] = useState([
-    { id: 1, date: '2025-01-05', state: 'TX', location: 'Dallas - Loves #405', gallons: 180, pricePerGal: 3.45, odometer: 125000 },
-    { id: 2, date: '2025-01-08', state: 'OK', location: 'OKC - Pilot #892', gallons: 165, pricePerGal: 3.38, odometer: 126100 },
-    { id: 3, date: '2025-01-12', state: 'AR', location: 'Little Rock - TA', gallons: 175, pricePerGal: 3.52, odometer: 127200 },
-    { id: 4, date: '2025-01-15', state: 'TN', location: 'Memphis - Flying J', gallons: 190, pricePerGal: 3.41, odometer: 128400 },
-    { id: 5, date: '2025-01-18', state: 'GA', location: 'Atlanta - Loves #612', gallons: 170, pricePerGal: 3.48, odometer: 129500 },
-  ]);
-
-  // ========== LOAD TRACKER STATE ==========
-  const [loads, setLoads] = useState([
-    { id: 1, loadNum: '2025-001', date: '2025-01-05', origin: 'Dallas, TX', dest: 'Atlanta, GA', loadedMiles: 802, deadhead: 45, lineHaul: 2800, fsc: 320, other: 150, fuelCost: 624, tolls: 45.80, scales: 12, parking: 35, lumper: 0 },
-    { id: 2, loadNum: '2025-002', date: '2025-01-08', origin: 'Atlanta, GA', dest: 'Miami, FL', loadedMiles: 660, deadhead: 0, lineHaul: 2200, fsc: 264, other: 100, fuelCost: 512, tolls: 32.50, scales: 12, parking: 25, lumper: 50 },
-    { id: 3, loadNum: '2025-003', date: '2025-01-11', origin: 'Miami, FL', dest: 'Houston, TX', loadedMiles: 1187, deadhead: 30, lineHaul: 3800, fsc: 475, other: 200, fuelCost: 892, tolls: 78.20, scales: 18, parking: 45, lumper: 0 },
-    { id: 4, loadNum: '2025-004', date: '2025-01-15', origin: 'Houston, TX', dest: 'Phoenix, AZ', loadedMiles: 1176, deadhead: 85, lineHaul: 3500, fsc: 420, other: 175, fuelCost: 875, tolls: 65.40, scales: 15, parking: 40, lumper: 75 },
-    { id: 5, loadNum: '2025-005', date: '2025-01-19', origin: 'Phoenix, AZ', dest: 'Los Angeles, CA', loadedMiles: 372, deadhead: 0, lineHaul: 1400, fsc: 186, other: 75, fuelCost: 289, tolls: 22.00, scales: 12, parking: 20, lumper: 0 },
-  ]);
-
-  // ========== COST PER MILE STATE ==========
+  // ========== CLEAN DATA - NO SAMPLE DATA ==========
+  const [fuelEntries, setFuelEntries] = useState([]);
+  const [loads, setLoads] = useState([]);
   const [cpmData, setCpmData] = useState({
-    totalMiles: 8234,
-    fuel: 3892,
-    maintenance: 1245,
-    insurance: 1850,
-    truckPayment: 2100,
-    tolls: 456,
-    permits: 320,
-    parking: 180,
-    communication: 150,
-    lumper: 200,
-    scales: 75,
-    other: 232
+    totalMiles: 0,
+    fuel: 0,
+    maintenance: 0,
+    insurance: 0,
+    truckPayment: 0,
+    tolls: 0,
+    permits: 0,
+    parking: 0,
+    communication: 0,
+    lumper: 0,
+    scales: 0,
+    other: 0
   });
-
-  // ========== PER DIEM STATE ==========
   const [perDiemData, setPerDiemData] = useState([
-    { month: 'January', days: 24 },
-    { month: 'February', days: 22 },
-    { month: 'March', days: 26 },
-    { month: 'April', days: 23 },
-    { month: 'May', days: 25 },
-    { month: 'June', days: 24 },
-    { month: 'July', days: 26 },
-    { month: 'August', days: 25 },
-    { month: 'September', days: 23 },
-    { month: 'October', days: 26 },
-    { month: 'November', days: 22 },
-    { month: 'December', days: 20 },
+    { month: 'January', days: 0 },
+    { month: 'February', days: 0 },
+    { month: 'March', days: 0 },
+    { month: 'April', days: 0 },
+    { month: 'May', days: 0 },
+    { month: 'June', days: 0 },
+    { month: 'July', days: 0 },
+    { month: 'August', days: 0 },
+    { month: 'September', days: 0 },
+    { month: 'October', days: 0 },
+    { month: 'November', days: 0 },
+    { month: 'December', days: 0 },
   ]);
-
-  // ========== IFTA STATE ==========
   const [iftaQuarter, setIftaQuarter] = useState('Q1 2025');
-  const [iftaData, setIftaData] = useState([
-    { state: 'TX', miles: 8200, fuelPurchased: 1450 },
-    { state: 'OK', miles: 3100, fuelPurchased: 320 },
-    { state: 'AR', miles: 2800, fuelPurchased: 280 },
-    { state: 'TN', miles: 4500, fuelPurchased: 620 },
-    { state: 'GA', miles: 5200, fuelPurchased: 780 },
-    { state: 'LA', miles: 3800, fuelPurchased: 500 },
-    { state: 'MS', miles: 2100, fuelPurchased: 400 },
-    { state: 'AL', miles: 2750, fuelPurchased: 500 },
-  ]);
+  const [iftaData, setIftaData] = useState([]);
 
   // ========== MODAL STATES ==========
   const [showFuelModal, setShowFuelModal] = useState(false);
@@ -139,7 +135,7 @@ export default function App() {
     // Fuel stats
     const totalFuelGallons = fuelEntries.reduce((sum, e) => sum + e.gallons, 0);
     const totalFuelCost = fuelEntries.reduce((sum, e) => sum + (e.gallons * e.pricePerGal), 0);
-    const avgFuelPrice = totalFuelCost / totalFuelGallons || 0;
+    const avgFuelPrice = totalFuelGallons > 0 ? totalFuelCost / totalFuelGallons : 0;
     
     // MPG calculation
     const sortedFuel = [...fuelEntries].sort((a, b) => a.odometer - b.odometer);
@@ -149,7 +145,7 @@ export default function App() {
       totalMilesTraveled += sortedFuel[i].odometer - sortedFuel[i-1].odometer;
       totalGallonsForMPG += sortedFuel[i-1].gallons;
     }
-    const avgMPG = totalMilesTraveled / totalGallonsForMPG || 0;
+    const avgMPG = totalGallonsForMPG > 0 ? totalMilesTraveled / totalGallonsForMPG : 6.5;
 
     // Load stats
     const totalRevenue = loads.reduce((sum, l) => sum + l.lineHaul + l.fsc + l.other, 0);
@@ -157,13 +153,14 @@ export default function App() {
     const netProfit = totalRevenue - totalExpenses;
     const totalLoadedMiles = loads.reduce((sum, l) => sum + l.loadedMiles, 0);
     const totalDeadhead = loads.reduce((sum, l) => sum + l.deadhead, 0);
-    const profitPerMile = netProfit / (totalLoadedMiles + totalDeadhead) || 0;
+    const totalAllMiles = totalLoadedMiles + totalDeadhead;
+    const profitPerMile = totalAllMiles > 0 ? netProfit / totalAllMiles : 0;
 
     // CPM stats
     const totalOperatingCosts = cpmData.fuel + cpmData.maintenance + cpmData.insurance + 
       cpmData.truckPayment + cpmData.tolls + cpmData.permits + cpmData.parking + 
       cpmData.communication + cpmData.lumper + cpmData.scales + cpmData.other;
-    const cpm = totalOperatingCosts / cpmData.totalMiles || 0;
+    const cpm = cpmData.totalMiles > 0 ? totalOperatingCosts / cpmData.totalMiles : 0;
 
     // Per Diem stats
     const totalDaysOTR = perDiemData.reduce((sum, m) => sum + m.days, 0);
@@ -175,7 +172,7 @@ export default function App() {
     // IFTA stats
     const totalIFTAMiles = iftaData.reduce((sum, s) => sum + s.miles, 0);
     const totalIFTAFuel = iftaData.reduce((sum, s) => sum + s.fuelPurchased, 0);
-    const fleetMPG = totalIFTAMiles / totalIFTAFuel || avgMPG || 6.5;
+    const fleetMPG = totalIFTAFuel > 0 ? totalIFTAMiles / totalIFTAFuel : avgMPG || 6.5;
 
     return {
       totalFuelGallons, totalFuelCost, avgFuelPrice, avgMPG,
@@ -198,7 +195,7 @@ export default function App() {
     { id: 'settings', icon: '⚙️', label: 'Settings' },
   ];
 
-  // ========== STYLES ==========
+  // ========== STYLES - ENHANCED WITH MORE WHITESPACE ==========
   const styles = {
     app: {
       display: 'flex',
@@ -207,34 +204,39 @@ export default function App() {
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
     },
     sidebar: {
-      width: sidebarCollapsed ? 70 : 240,
+      width: sidebarCollapsed ? 80 : 280,
       background: colors.gray800,
       borderRight: `1px solid rgba(255,255,255,0.1)`,
-      padding: '20px 0',
+      padding: '28px 0',
       transition: 'width 0.3s ease',
       flexShrink: 0,
       display: 'flex',
       flexDirection: 'column',
     },
     logo: {
-      padding: sidebarCollapsed ? '0 10px 20px' : '0 20px 20px',
+      padding: sidebarCollapsed ? '0 16px 28px' : '0 28px 32px',
       borderBottom: '1px solid rgba(255,255,255,0.1)',
-      marginBottom: 20,
+      marginBottom: 32,
       display: 'flex',
       alignItems: 'center',
-      gap: 10,
+      gap: 16,
       cursor: 'pointer',
     },
-    logoIcon: {
-      fontSize: 28,
-      flexShrink: 0,
-    },
     logoText: {
-      fontSize: 18,
+      fontSize: 22,
       fontWeight: 700,
       color: colors.white,
       whiteSpace: 'nowrap',
       overflow: 'hidden',
+      lineHeight: 1.2,
+    },
+    logoSubtext: {
+      fontSize: 13,
+      color: colors.orange,
+      fontWeight: 600,
+      textTransform: 'uppercase',
+      letterSpacing: '1px',
+      marginTop: 4,
     },
     nav: {
       listStyle: 'none',
@@ -243,76 +245,83 @@ export default function App() {
       flex: 1,
     },
     navItem: (isActive) => ({
-      padding: sidebarCollapsed ? '14px 0' : '12px 20px',
+      padding: sidebarCollapsed ? '18px 0' : '18px 28px',
       color: isActive ? colors.orange : colors.gray400,
-      fontSize: 14,
+      fontSize: 15,
       display: 'flex',
       alignItems: 'center',
       justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-      gap: 12,
+      gap: 16,
       cursor: 'pointer',
-      borderLeft: isActive ? `3px solid ${colors.orange}` : '3px solid transparent',
+      borderLeft: isActive ? `4px solid ${colors.orange}` : '4px solid transparent',
       background: isActive ? 'rgba(249, 115, 22, 0.1)' : 'transparent',
       transition: 'all 0.2s ease',
+      marginBottom: 6,
     }),
     main: {
       flex: 1,
-      padding: 24,
+      padding: 48,
       overflow: 'auto',
       minHeight: '100vh',
     },
     pageHeader: {
-      marginBottom: 24,
+      marginBottom: 48,
     },
     pageTitle: {
-      fontSize: 28,
+      fontSize: 36,
       fontWeight: 700,
       color: colors.white,
-      marginBottom: 8,
+      marginBottom: 14,
     },
     pageSubtitle: {
-      fontSize: 14,
+      fontSize: 16,
       color: colors.gray400,
+      lineHeight: 1.6,
     },
     statsGrid: {
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-      gap: 20,
-      marginBottom: 24,
+      gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+      gap: 32,
+      marginBottom: 48,
     },
-    statCard: (accent = colors.white) => ({
+    statCard: (accent = colors.white, isSelected = false, isClickable = false) => ({
       background: colors.gray800,
-      borderRadius: 16,
-      padding: 20,
-      borderLeft: `4px solid ${accent}`,
+      borderRadius: 20,
+      padding: 32,
+      borderLeft: `5px solid ${accent}`,
+      cursor: isClickable ? 'pointer' : 'default',
+      transition: 'all 0.2s ease',
+      transform: isSelected ? 'scale(1.02)' : 'scale(1)',
+      boxShadow: isSelected ? `0 8px 32px rgba(249, 115, 22, 0.25)` : 'none',
+      border: isSelected ? `2px solid ${colors.orange}` : '2px solid transparent',
     }),
     statIcon: {
-      fontSize: 24,
-      marginBottom: 12,
+      fontSize: 32,
+      marginBottom: 20,
     },
     statValue: (color = colors.white) => ({
-      fontSize: 28,
+      fontSize: 36,
       fontWeight: 800,
       color: color,
-      marginBottom: 4,
+      marginBottom: 10,
     }),
     statLabel: {
-      fontSize: 13,
+      fontSize: 14,
       color: colors.gray400,
       textTransform: 'uppercase',
       letterSpacing: '0.5px',
     },
     card: {
       background: colors.gray800,
-      borderRadius: 16,
-      padding: 24,
-      marginBottom: 24,
+      borderRadius: 24,
+      padding: 40,
+      marginBottom: 40,
     },
     cardTitle: {
-      fontSize: 18,
+      fontSize: 22,
       fontWeight: 600,
       color: colors.white,
-      marginBottom: 20,
+      marginBottom: 32,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -323,7 +332,7 @@ export default function App() {
     },
     th: {
       textAlign: 'left',
-      padding: '12px 16px',
+      padding: '18px 24px',
       color: colors.gray400,
       fontSize: 12,
       fontWeight: 600,
@@ -332,21 +341,21 @@ export default function App() {
       borderBottom: `1px solid rgba(255,255,255,0.1)`,
     },
     td: {
-      padding: '14px 16px',
+      padding: '20px 24px',
       color: colors.gray300,
-      fontSize: 14,
+      fontSize: 15,
       borderBottom: `1px solid rgba(255,255,255,0.05)`,
     },
     btn: (variant = 'primary') => ({
-      padding: '10px 20px',
-      borderRadius: 8,
+      padding: '16px 32px',
+      borderRadius: 14,
       border: 'none',
       cursor: 'pointer',
-      fontSize: 14,
+      fontSize: 15,
       fontWeight: 600,
       display: 'inline-flex',
       alignItems: 'center',
-      gap: 8,
+      gap: 12,
       transition: 'all 0.2s ease',
       background: variant === 'primary' 
         ? `linear-gradient(135deg, ${colors.orange}, ${colors.orangeDark})` 
@@ -361,244 +370,465 @@ export default function App() {
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 1000,
+      padding: 32,
     },
     modalContent: {
       background: colors.gray800,
-      borderRadius: 20,
-      padding: 32,
+      borderRadius: 28,
+      padding: 48,
       width: '90%',
-      maxWidth: 600,
+      maxWidth: 680,
       maxHeight: '90vh',
       overflow: 'auto',
     },
     input: {
       width: '100%',
-      padding: '12px 16px',
-      borderRadius: 8,
+      padding: '16px 20px',
+      borderRadius: 12,
       border: `1px solid rgba(255,255,255,0.2)`,
       background: colors.navyDark,
       color: colors.white,
-      fontSize: 14,
+      fontSize: 15,
       outline: 'none',
     },
     formGrid: {
       display: 'grid',
       gridTemplateColumns: 'repeat(2, 1fr)',
-      gap: 16,
+      gap: 24,
     },
     formGroup: {
-      marginBottom: 16,
+      marginBottom: 24,
     },
     label: {
       display: 'block',
       color: colors.gray400,
       fontSize: 12,
       fontWeight: 500,
-      marginBottom: 8,
+      marginBottom: 12,
       textTransform: 'uppercase',
+      letterSpacing: '0.5px',
     },
-    progressBar: {
-      width: '100%',
-      height: 8,
-      background: 'rgba(255,255,255,0.1)',
-      borderRadius: 4,
-      overflow: 'hidden',
+    emptyState: {
+      textAlign: 'center',
+      padding: '80px 48px',
+      color: colors.gray400,
     },
+    emptyIcon: {
+      fontSize: 72,
+      marginBottom: 28,
+      opacity: 0.5,
+    },
+  };
+
+  // ========== IFTA EXPORT FUNCTIONS ==========
+  
+  const calculateIFTA = (state, miles, fuelPurchased) => {
+    const taxableGallons = miles / stats.fleetMPG;
+    const netGallons = taxableGallons - fuelPurchased;
+    const taxRate = iftaTaxRates[state] || 0.25;
+    const taxDue = netGallons * taxRate;
+    return { taxableGallons, netGallons, taxRate, taxDue };
+  };
+
+  const exportIFTAtoCSV = () => {
+    const totalTaxDue = iftaData.reduce((sum, row) => {
+      const calc = calculateIFTA(row.state, row.miles, row.fuelPurchased);
+      return sum + calc.taxDue;
+    }, 0);
+
+    let csv = 'BalanceBooks Trucking - IFTA Report\n';
+    csv += `Quarter: ${iftaQuarter}\n`;
+    csv += `Fleet MPG: ${stats.fleetMPG.toFixed(2)}\n\n`;
+    csv += 'State,Miles,Taxable Gallons,Fuel Purchased,Net Gallons,Tax Rate,Tax Due/Credit\n';
+    
+    iftaData.forEach(row => {
+      const calc = calculateIFTA(row.state, row.miles, row.fuelPurchased);
+      csv += `${row.state},${row.miles},${calc.taxableGallons.toFixed(2)},${row.fuelPurchased},${calc.netGallons.toFixed(2)},$${calc.taxRate.toFixed(3)},$${calc.taxDue.toFixed(2)}\n`;
+    });
+    
+    csv += `\nTOTAL,${stats.totalIFTAMiles},,${stats.totalIFTAFuel},,,$${totalTaxDue.toFixed(2)}\n`;
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `IFTA-Report-${iftaQuarter.replace(' ', '-')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportIFTAtoPDF = () => {
+    const totalTaxDue = iftaData.reduce((sum, row) => {
+      const calc = calculateIFTA(row.state, row.miles, row.fuelPurchased);
+      return sum + calc.taxDue;
+    }, 0);
+
+    // Create a printable HTML document
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>IFTA Report - ${iftaQuarter}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 48px; color: #333; max-width: 1000px; margin: 0 auto; }
+          .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 4px solid #f97316; }
+          .logo { display: flex; align-items: center; gap: 16px; }
+          .logo-text { font-size: 28px; font-weight: bold; }
+          .logo-text span { color: #f97316; }
+          h1 { color: #1e3a5f; margin: 0 0 10px 0; font-size: 32px; }
+          .subtitle { color: #64748b; margin: 0; font-size: 16px; }
+          .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-bottom: 48px; }
+          .summary-card { background: #f8fafc; padding: 28px; border-radius: 16px; text-align: center; border-left: 5px solid #f97316; }
+          .summary-value { font-size: 28px; font-weight: bold; color: #1e3a5f; }
+          .summary-label { font-size: 12px; color: #64748b; text-transform: uppercase; margin-top: 8px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 48px; }
+          th { background: #1e3a5f; color: white; padding: 18px 20px; text-align: left; font-size: 12px; text-transform: uppercase; }
+          td { padding: 18px 20px; border-bottom: 1px solid #e2e8f0; font-size: 15px; }
+          tr:nth-child(even) { background: #f8fafc; }
+          .total-row { background: #1e3a5f !important; color: white; font-weight: bold; }
+          .credit { color: #22c55e; }
+          .due { color: #ef4444; }
+          .footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 13px; text-align: center; }
+          @media print { body { padding: 24px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo">
+            <svg viewBox="0 0 100 100" width="56" height="56">
+              <defs>
+                <linearGradient id="navyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" style="stop-color:#1e3a5f" />
+                  <stop offset="100%" style="stop-color:#0f172a" />
+                </linearGradient>
+                <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#f97316" />
+                  <stop offset="100%" style="stop-color:#ea580c" />
+                </linearGradient>
+              </defs>
+              <path d="M 50 5 L 92 18 L 92 55 C 92 78 73 92 50 98 C 27 92 8 78 8 55 L 8 18 Z" fill="url(#navyGrad)"/>
+              <path d="M 50 14 L 82 24 L 82 54 C 82 72 67 83 50 88 C 33 83 18 72 18 54 L 18 24 Z" fill="none" stroke="url(#orangeGrad)" stroke-width="3"/>
+              <circle cx="50" cy="52" r="24" fill="url(#orangeGrad)"/>
+              <path d="M 36 52 L 46 62 L 66 42" fill="none" stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div>
+              <div class="logo-text">Balance<span>Books</span></div>
+              <div style="color: #f97316; font-size: 14px; font-weight: 600; letter-spacing: 1px;">TRUCKING</div>
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <h1>IFTA Report</h1>
+            <p class="subtitle">${iftaQuarter}</p>
+          </div>
+        </div>
+
+        <div class="summary">
+          <div class="summary-card">
+            <div class="summary-value">${iftaQuarter}</div>
+            <div class="summary-label">Quarter</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-value">${formatNumber(stats.totalIFTAMiles)}</div>
+            <div class="summary-label">Total Miles</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-value">${formatNumber(stats.totalIFTAFuel)}</div>
+            <div class="summary-label">Total Gallons</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-value ${totalTaxDue >= 0 ? 'due' : 'credit'}">${totalTaxDue >= 0 ? formatCurrency(totalTaxDue) : '(' + formatCurrency(Math.abs(totalTaxDue)) + ')'}</div>
+            <div class="summary-label">${totalTaxDue >= 0 ? 'Tax Due' : 'Tax Credit'}</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>State</th>
+              <th style="text-align: right;">Miles</th>
+              <th style="text-align: right;">Taxable Gal</th>
+              <th style="text-align: right;">Fuel Purchased</th>
+              <th style="text-align: right;">Net Gallons</th>
+              <th style="text-align: right;">Tax Rate</th>
+              <th style="text-align: right;">Tax Due/(Credit)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${iftaData.map(row => {
+              const calc = calculateIFTA(row.state, row.miles, row.fuelPurchased);
+              return `
+                <tr>
+                  <td><strong>${row.state}</strong></td>
+                  <td style="text-align: right;">${formatNumber(row.miles)}</td>
+                  <td style="text-align: right;">${formatNumber(calc.taxableGallons, 2)}</td>
+                  <td style="text-align: right;">${formatNumber(row.fuelPurchased)}</td>
+                  <td style="text-align: right;" class="${calc.netGallons >= 0 ? 'due' : 'credit'}">${formatNumber(calc.netGallons, 2)}</td>
+                  <td style="text-align: right;">$${calc.taxRate.toFixed(3)}</td>
+                  <td style="text-align: right;" class="${calc.taxDue >= 0 ? 'due' : 'credit'}">${calc.taxDue >= 0 ? formatCurrency(calc.taxDue) : '(' + formatCurrency(Math.abs(calc.taxDue)) + ')'}</td>
+                </tr>
+              `;
+            }).join('')}
+            <tr class="total-row">
+              <td><strong>TOTAL</strong></td>
+              <td style="text-align: right;">${formatNumber(stats.totalIFTAMiles)}</td>
+              <td></td>
+              <td style="text-align: right;">${formatNumber(stats.totalIFTAFuel)}</td>
+              <td colspan="2"></td>
+              <td style="text-align: right; font-size: 18px;">${totalTaxDue >= 0 ? formatCurrency(totalTaxDue) : '(' + formatCurrency(Math.abs(totalTaxDue)) + ')'}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="background: #fff7ed; padding: 24px; border-radius: 16px; border-left: 5px solid #f97316;">
+          <strong style="color: #ea580c;">Fleet MPG Used:</strong> ${stats.fleetMPG.toFixed(2)} miles per gallon
+        </div>
+
+        <div class="footer">
+          Generated by BalanceBooks Trucking • ${new Date().toLocaleDateString()} • www.balancebooksapp.com
+        </div>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 250);
   };
 
   // ========== RENDER FUNCTIONS ==========
   
-  const renderDashboard = () => (
-    <div>
-      <div style={styles.pageHeader}>
-        <h1 style={styles.pageTitle}>Dashboard</h1>
-        <p style={styles.pageSubtitle}>Overview of your trucking business performance</p>
-      </div>
+  const renderDashboard = () => {
+    const handleCardClick = (cardId) => {
+      setSelectedCard(selectedCard === cardId ? null : cardId);
+    };
 
-      {/* Key Metrics */}
-      <div style={styles.statsGrid}>
-        <div style={styles.statCard(colors.green)}>
-          <div style={styles.statIcon}>💰</div>
-          <div style={styles.statValue(colors.green)}>{formatCurrency(stats.netProfit)}</div>
-          <div style={styles.statLabel}>Net Profit (YTD)</div>
+    return (
+      <div>
+        <div style={styles.pageHeader}>
+          <h1 style={styles.pageTitle}>Dashboard</h1>
+          <p style={styles.pageSubtitle}>Overview of your trucking business performance. Click any card to select it.</p>
         </div>
-        <div style={styles.statCard(colors.orange)}>
-          <div style={styles.statIcon}>🛣️</div>
-          <div style={styles.statValue()}>{formatNumber(stats.totalLoadedMiles)}</div>
-          <div style={styles.statLabel}>Loaded Miles</div>
-        </div>
-        <div style={styles.statCard(colors.teal)}>
-          <div style={styles.statIcon}>📦</div>
-          <div style={styles.statValue()}>{stats.completedLoads}</div>
-          <div style={styles.statLabel}>Completed Loads</div>
-        </div>
-        <div style={styles.statCard(colors.green)}>
-          <div style={styles.statIcon}>📈</div>
-          <div style={styles.statValue(colors.green)}>{formatCurrency(stats.profitPerMile)}</div>
-          <div style={styles.statLabel}>Profit Per Mile</div>
-        </div>
-      </div>
 
-      {/* Secondary Metrics */}
-      <div style={styles.statsGrid}>
-        <div style={styles.statCard()}>
-          <div style={styles.statIcon}>⛽</div>
-          <div style={styles.statValue()}>{stats.avgMPG.toFixed(1)}</div>
-          <div style={styles.statLabel}>Avg MPG</div>
+        {/* Key Metrics - Clickable Cards */}
+        <div style={styles.statsGrid}>
+          <div 
+            style={styles.statCard(colors.green, selectedCard === 'profit', true)}
+            onClick={() => handleCardClick('profit')}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = selectedCard === 'profit' ? 'scale(1.02)' : 'scale(1)'}
+          >
+            <div style={styles.statIcon}>💰</div>
+            <div style={styles.statValue(colors.green)}>{formatCurrency(stats.netProfit)}</div>
+            <div style={styles.statLabel}>Net Profit (YTD)</div>
+          </div>
+          <div 
+            style={styles.statCard(colors.orange, selectedCard === 'miles', true)}
+            onClick={() => handleCardClick('miles')}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = selectedCard === 'miles' ? 'scale(1.02)' : 'scale(1)'}
+          >
+            <div style={styles.statIcon}>🛣️</div>
+            <div style={styles.statValue()}>{formatNumber(stats.totalLoadedMiles)}</div>
+            <div style={styles.statLabel}>Loaded Miles</div>
+          </div>
+          <div 
+            style={styles.statCard(colors.teal, selectedCard === 'loads', true)}
+            onClick={() => handleCardClick('loads')}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = selectedCard === 'loads' ? 'scale(1.02)' : 'scale(1)'}
+          >
+            <div style={styles.statIcon}>📦</div>
+            <div style={styles.statValue()}>{stats.completedLoads}</div>
+            <div style={styles.statLabel}>Completed Loads</div>
+          </div>
+          <div 
+            style={styles.statCard(colors.green, selectedCard === 'ppm', true)}
+            onClick={() => handleCardClick('ppm')}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = selectedCard === 'ppm' ? 'scale(1.02)' : 'scale(1)'}
+          >
+            <div style={styles.statIcon}>📈</div>
+            <div style={styles.statValue(colors.green)}>{formatCurrency(stats.profitPerMile)}</div>
+            <div style={styles.statLabel}>Profit Per Mile</div>
+          </div>
         </div>
-        <div style={styles.statCard()}>
-          <div style={styles.statIcon}>🧮</div>
-          <div style={styles.statValue(colors.orange)}>{formatCurrency(stats.cpm)}</div>
-          <div style={styles.statLabel}>Cost Per Mile</div>
-        </div>
-        <div style={styles.statCard()}>
-          <div style={styles.statIcon}>⛽</div>
-          <div style={styles.statValue()}>{formatCurrency(stats.avgFuelPrice)}</div>
-          <div style={styles.statLabel}>Avg Fuel Price</div>
-        </div>
-        <div style={styles.statCard()}>
-          <div style={styles.statIcon}>📅</div>
-          <div style={styles.statValue()}>{stats.totalDaysOTR}</div>
-          <div style={styles.statLabel}>Days OTR (YTD)</div>
-        </div>
-      </div>
 
-      {/* Recent Loads */}
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>
-          <span>📦 Recent Loads</span>
-          <button style={styles.btn('secondary')} onClick={() => setActiveTab('loads')}>
-            View All →
-          </button>
+        {/* Secondary Metrics - Clickable */}
+        <div style={styles.statsGrid}>
+          <div 
+            style={styles.statCard(colors.white, selectedCard === 'mpg', true)}
+            onClick={() => handleCardClick('mpg')}
+          >
+            <div style={styles.statIcon}>⛽</div>
+            <div style={styles.statValue()}>{stats.avgMPG.toFixed(1)}</div>
+            <div style={styles.statLabel}>Avg MPG</div>
+          </div>
+          <div 
+            style={styles.statCard(colors.white, selectedCard === 'cpm', true)}
+            onClick={() => handleCardClick('cpm')}
+          >
+            <div style={styles.statIcon}>🧮</div>
+            <div style={styles.statValue(colors.orange)}>{formatCurrency(stats.cpm)}</div>
+            <div style={styles.statLabel}>Cost Per Mile</div>
+          </div>
+          <div 
+            style={styles.statCard(colors.white, selectedCard === 'fuelprice', true)}
+            onClick={() => handleCardClick('fuelprice')}
+          >
+            <div style={styles.statIcon}>⛽</div>
+            <div style={styles.statValue()}>{formatCurrency(stats.avgFuelPrice)}</div>
+            <div style={styles.statLabel}>Avg Fuel Price</div>
+          </div>
+          <div 
+            style={styles.statCard(colors.white, selectedCard === 'daysotr', true)}
+            onClick={() => handleCardClick('daysotr')}
+          >
+            <div style={styles.statIcon}>📅</div>
+            <div style={styles.statValue()}>{stats.totalDaysOTR}</div>
+            <div style={styles.statLabel}>Days OTR (YTD)</div>
+          </div>
         </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>Load #</th>
-                <th style={styles.th}>Route</th>
-                <th style={styles.th}>Miles</th>
-                <th style={{ ...styles.th, textAlign: 'right' }}>Revenue</th>
-                <th style={{ ...styles.th, textAlign: 'right' }}>Expenses</th>
-                <th style={{ ...styles.th, textAlign: 'right' }}>Profit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loads.slice(-5).reverse().map(load => {
-                const rev = load.lineHaul + load.fsc + load.other;
-                const exp = load.fuelCost + load.tolls + load.scales + load.parking + load.lumper;
-                const profit = rev - exp;
-                return (
-                  <tr key={load.id}>
-                    <td style={styles.td}>{load.loadNum}</td>
-                    <td style={styles.td}>{load.origin} → {load.dest}</td>
-                    <td style={styles.td}>{formatNumber(load.loadedMiles)}</td>
-                    <td style={{ ...styles.td, textAlign: 'right', color: colors.green }}>{formatCurrency(rev)}</td>
-                    <td style={{ ...styles.td, textAlign: 'right', color: colors.orange }}>{formatCurrency(exp)}</td>
-                    <td style={{ ...styles.td, textAlign: 'right', color: profit >= 0 ? colors.green : colors.red, fontWeight: 600 }}>
-                      {formatCurrency(profit)}
-                    </td>
+
+        {/* Recent Loads or Empty State */}
+        <div style={styles.card}>
+          <div style={styles.cardTitle}>
+            <span>📦 Recent Loads</span>
+            <button style={styles.btn('secondary')} onClick={() => setActiveTab('loads')}>
+              View All →
+            </button>
+          </div>
+          {loads.length > 0 ? (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Load #</th>
+                    <th style={styles.th}>Route</th>
+                    <th style={styles.th}>Miles</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Revenue</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Expenses</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Profit</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {loads.slice(-5).reverse().map(load => {
+                    const rev = load.lineHaul + load.fsc + load.other;
+                    const exp = load.fuelCost + load.tolls + load.scales + load.parking + load.lumper;
+                    const profit = rev - exp;
+                    return (
+                      <tr key={load.id}>
+                        <td style={styles.td}>{load.loadNum}</td>
+                        <td style={styles.td}>{load.origin} → {load.dest}</td>
+                        <td style={styles.td}>{formatNumber(load.loadedMiles)}</td>
+                        <td style={{ ...styles.td, textAlign: 'right', color: colors.green }}>{formatCurrency(rev)}</td>
+                        <td style={{ ...styles.td, textAlign: 'right', color: colors.orange }}>{formatCurrency(exp)}</td>
+                        <td style={{ ...styles.td, textAlign: 'right', color: profit >= 0 ? colors.green : colors.red, fontWeight: 600 }}>
+                          {formatCurrency(profit)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={styles.emptyState}>
+              <div style={styles.emptyIcon}>📦</div>
+              <h3 style={{ color: colors.white, marginBottom: 16, fontSize: 24 }}>No Loads Yet</h3>
+              <p style={{ marginBottom: 32, fontSize: 16 }}>Start tracking your loads to see revenue and profit analytics here.</p>
+              <button style={styles.btn('primary')} onClick={() => { setActiveTab('loads'); }}>
+                ➕ Add Your First Load
+              </button>
+            </div>
+          )}
         </div>
       </div>
-
-      {/* Quick Actions */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-        <button style={{ ...styles.btn('secondary'), justifyContent: 'center', padding: 20 }} onClick={() => { setEditingFuel(null); setShowFuelModal(true); }}>
-          ⛽ Log Fuel Purchase
-        </button>
-        <button style={{ ...styles.btn('secondary'), justifyContent: 'center', padding: 20 }} onClick={() => { setEditingLoad(null); setShowLoadModal(true); }}>
-          📦 Add New Load
-        </button>
-        <button style={{ ...styles.btn('secondary'), justifyContent: 'center', padding: 20 }} onClick={() => setActiveTab('ifta')}>
-          📋 Generate IFTA Report
-        </button>
-        <button style={{ ...styles.btn('secondary'), justifyContent: 'center', padding: 20 }} onClick={() => setActiveTab('cpm')}>
-          🧮 Calculate Cost Per Mile
-        </button>
-      </div>
-    </div>
-  );
+    );
+  };
 
   const renderFuelLog = () => (
     <div>
       <div style={styles.pageHeader}>
         <h1 style={styles.pageTitle}>⛽ Fuel Log</h1>
-        <p style={styles.pageSubtitle}>Track fuel purchases for IFTA compliance and expense tracking</p>
+        <p style={styles.pageSubtitle}>Track fuel purchases to calculate MPG and fuel costs</p>
       </div>
 
       <div style={styles.statsGrid}>
-        <div style={styles.statCard(colors.orange)}>
+        <div style={styles.statCard()}>
           <div style={styles.statIcon}>⛽</div>
-          <div style={styles.statValue()}>{formatNumber(stats.totalFuelGallons, 0)}</div>
+          <div style={styles.statValue()}>{formatNumber(stats.totalFuelGallons)}</div>
           <div style={styles.statLabel}>Total Gallons</div>
         </div>
         <div style={styles.statCard(colors.orange)}>
           <div style={styles.statIcon}>💵</div>
-          <div style={styles.statValue()}>{formatCurrency(stats.totalFuelCost)}</div>
-          <div style={styles.statLabel}>Total Cost</div>
+          <div style={styles.statValue(colors.orange)}>{formatCurrency(stats.totalFuelCost)}</div>
+          <div style={styles.statLabel}>Total Fuel Cost</div>
         </div>
         <div style={styles.statCard()}>
-          <div style={styles.statIcon}>💲</div>
+          <div style={styles.statIcon}>📊</div>
           <div style={styles.statValue()}>{formatCurrency(stats.avgFuelPrice)}</div>
           <div style={styles.statLabel}>Avg Price/Gallon</div>
         </div>
-        <div style={styles.statCard(colors.teal)}>
-          <div style={styles.statIcon}>📊</div>
-          <div style={styles.statValue()}>{stats.avgMPG.toFixed(1)}</div>
+        <div style={styles.statCard(colors.green)}>
+          <div style={styles.statIcon}>🚛</div>
+          <div style={styles.statValue(colors.green)}>{stats.avgMPG.toFixed(2)}</div>
           <div style={styles.statLabel}>Average MPG</div>
         </div>
       </div>
 
       <div style={styles.card}>
         <div style={styles.cardTitle}>
-          <span>Fuel Purchase History</span>
+          <span>Fuel Entries</span>
           <button style={styles.btn('primary')} onClick={() => { setEditingFuel(null); setShowFuelModal(true); }}>
-            + Add Entry
+            ➕ Add Fuel Entry
           </button>
         </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>Date</th>
-                <th style={styles.th}>State</th>
-                <th style={styles.th}>Location</th>
-                <th style={{ ...styles.th, textAlign: 'right' }}>Gallons</th>
-                <th style={{ ...styles.th, textAlign: 'right' }}>Price/Gal</th>
-                <th style={{ ...styles.th, textAlign: 'right' }}>Total</th>
-                <th style={{ ...styles.th, textAlign: 'right' }}>Odometer</th>
-                <th style={styles.th}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {fuelEntries.map((entry, idx) => {
-                const prevEntry = fuelEntries[idx - 1];
-                const milesSince = prevEntry ? entry.odometer - prevEntry.odometer : null;
-                const mpg = milesSince && prevEntry ? milesSince / prevEntry.gallons : null;
-                return (
+        
+        {fuelEntries.length > 0 ? (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Date</th>
+                  <th style={styles.th}>State</th>
+                  <th style={styles.th}>Location</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Gallons</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>$/Gallon</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Total</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Odometer</th>
+                  <th style={styles.th}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fuelEntries.slice().reverse().map(entry => (
                   <tr key={entry.id}>
                     <td style={styles.td}>{entry.date}</td>
-                    <td style={styles.td}><span style={{ background: colors.orange, padding: '2px 8px', borderRadius: 4, fontSize: 12 }}>{entry.state}</span></td>
+                    <td style={styles.td}>
+                      <span style={{ background: colors.orange, padding: '6px 14px', borderRadius: 6, fontWeight: 600 }}>{entry.state}</span>
+                    </td>
                     <td style={styles.td}>{entry.location}</td>
                     <td style={{ ...styles.td, textAlign: 'right' }}>{formatNumber(entry.gallons, 1)}</td>
                     <td style={{ ...styles.td, textAlign: 'right' }}>{formatCurrency(entry.pricePerGal)}</td>
-                    <td style={{ ...styles.td, textAlign: 'right', color: colors.orange }}>{formatCurrency(entry.gallons * entry.pricePerGal)}</td>
+                    <td style={{ ...styles.td, textAlign: 'right', color: colors.orange, fontWeight: 600 }}>{formatCurrency(entry.gallons * entry.pricePerGal)}</td>
                     <td style={{ ...styles.td, textAlign: 'right' }}>{formatNumber(entry.odometer)}</td>
                     <td style={styles.td}>
-                      <button style={{ ...styles.btn('secondary'), padding: '6px 12px', marginRight: 8 }} onClick={() => { setEditingFuel(entry); setShowFuelModal(true); }}>Edit</button>
-                      <button style={{ ...styles.btn('secondary'), padding: '6px 12px', background: 'rgba(239,68,68,0.2)' }} onClick={() => setFuelEntries(fuelEntries.filter(e => e.id !== entry.id))}>Delete</button>
+                      <button style={{ ...styles.btn('secondary'), padding: '10px 20px' }} onClick={() => { setEditingFuel(entry); setShowFuelModal(true); }}>Edit</button>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={styles.emptyState}>
+            <div style={styles.emptyIcon}>⛽</div>
+            <h3 style={{ color: colors.white, marginBottom: 16, fontSize: 24 }}>No Fuel Entries Yet</h3>
+            <p style={{ marginBottom: 32, fontSize: 16 }}>Track your fuel purchases to calculate your fleet MPG and fuel costs.</p>
+            <button style={styles.btn('primary')} onClick={() => { setEditingFuel(null); setShowFuelModal(true); }}>
+              ➕ Add Fuel Entry
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -607,7 +837,7 @@ export default function App() {
     <div>
       <div style={styles.pageHeader}>
         <h1 style={styles.pageTitle}>📦 Load Tracker</h1>
-        <p style={styles.pageSubtitle}>Track load profitability and analyze your hauling performance</p>
+        <p style={styles.pageSubtitle}>Track revenue, expenses, and profitability for each load</p>
       </div>
 
       <div style={styles.statsGrid}>
@@ -622,7 +852,7 @@ export default function App() {
           <div style={styles.statLabel}>Total Expenses</div>
         </div>
         <div style={styles.statCard(colors.green)}>
-          <div style={styles.statIcon}>📊</div>
+          <div style={styles.statIcon}>📈</div>
           <div style={styles.statValue(colors.green)}>{formatCurrency(stats.netProfit)}</div>
           <div style={styles.statLabel}>Net Profit</div>
         </div>
@@ -635,170 +865,159 @@ export default function App() {
 
       <div style={styles.card}>
         <div style={styles.cardTitle}>
-          <span>Load History</span>
+          <span>All Loads ({loads.length})</span>
           <button style={styles.btn('primary')} onClick={() => { setEditingLoad(null); setShowLoadModal(true); }}>
-            + Add Load
+            ➕ Add Load
           </button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: 20 }}>
-          {loads.map(load => {
-            const rev = load.lineHaul + load.fsc + load.other;
-            const exp = load.fuelCost + load.tolls + load.scales + load.parking + load.lumper;
-            const profit = rev - exp;
-            const totalMiles = load.loadedMiles + load.deadhead;
-            const ppm = profit / totalMiles;
-            return (
-              <div key={load.id} style={{ background: colors.navyDark, borderRadius: 12, padding: 20, border: `1px solid rgba(255,255,255,0.1)` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-                  <div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: colors.white }}>{load.loadNum}</div>
-                    <div style={{ fontSize: 13, color: colors.gray400 }}>{load.date}</div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: profit >= 0 ? colors.green : colors.red }}>
-                      {formatCurrency(profit)}
-                    </div>
-                    <div style={{ fontSize: 12, color: colors.gray400 }}>Net Profit</div>
-                  </div>
-                </div>
-                <div style={{ fontSize: 14, color: colors.gray300, marginBottom: 16 }}>
-                  {load.origin} → {load.dest}
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-                  <div style={{ textAlign: 'center', padding: 10, background: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: colors.green }}>{formatCurrency(rev)}</div>
-                    <div style={{ fontSize: 11, color: colors.gray400 }}>Revenue</div>
-                  </div>
-                  <div style={{ textAlign: 'center', padding: 10, background: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: colors.orange }}>{formatCurrency(exp)}</div>
-                    <div style={{ fontSize: 11, color: colors.gray400 }}>Expenses</div>
-                  </div>
-                  <div style={{ textAlign: 'center', padding: 10, background: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: colors.white }}>{formatNumber(totalMiles)}</div>
-                    <div style={{ fontSize: 11, color: colors.gray400 }}>Miles</div>
-                  </div>
-                  <div style={{ textAlign: 'center', padding: 10, background: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: colors.white }}>{formatNumber(load.loadedMiles)}</div>
-                    <div style={{ fontSize: 11, color: colors.gray400 }}>Loaded</div>
-                  </div>
-                  <div style={{ textAlign: 'center', padding: 10, background: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: colors.gray400 }}>{formatNumber(load.deadhead)}</div>
-                    <div style={{ fontSize: 11, color: colors.gray400 }}>Deadhead</div>
-                  </div>
-                  <div style={{ textAlign: 'center', padding: 10, background: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: ppm >= 0 ? colors.green : colors.red }}>{formatCurrency(ppm)}</div>
-                    <div style={{ fontSize: 11, color: colors.gray400 }}>$/Mile</div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                  <button style={{ ...styles.btn('secondary'), flex: 1, justifyContent: 'center', padding: '8px 12px' }} onClick={() => { setEditingLoad(load); setShowLoadModal(true); }}>Edit</button>
-                  <button style={{ ...styles.btn('secondary'), flex: 1, justifyContent: 'center', padding: '8px 12px', background: 'rgba(239,68,68,0.2)' }} onClick={() => setLoads(loads.filter(l => l.id !== load.id))}>Delete</button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+
+        {loads.length > 0 ? (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Load #</th>
+                  <th style={styles.th}>Date</th>
+                  <th style={styles.th}>Route</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Miles</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Revenue</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Expenses</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Profit</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>$/Mile</th>
+                  <th style={styles.th}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loads.slice().reverse().map(load => {
+                  const rev = load.lineHaul + load.fsc + load.other;
+                  const exp = load.fuelCost + load.tolls + load.scales + load.parking + load.lumper;
+                  const profit = rev - exp;
+                  const totalMiles = load.loadedMiles + load.deadhead;
+                  const rpm = totalMiles > 0 ? profit / totalMiles : 0;
+                  return (
+                    <tr key={load.id}>
+                      <td style={styles.td}>{load.loadNum}</td>
+                      <td style={styles.td}>{load.date}</td>
+                      <td style={styles.td}>{load.origin} → {load.dest}</td>
+                      <td style={{ ...styles.td, textAlign: 'right' }}>{formatNumber(load.loadedMiles)} <span style={{ color: colors.gray500 }}>+ {load.deadhead} DH</span></td>
+                      <td style={{ ...styles.td, textAlign: 'right', color: colors.green }}>{formatCurrency(rev)}</td>
+                      <td style={{ ...styles.td, textAlign: 'right', color: colors.orange }}>{formatCurrency(exp)}</td>
+                      <td style={{ ...styles.td, textAlign: 'right', fontWeight: 600, color: profit >= 0 ? colors.green : colors.red }}>{formatCurrency(profit)}</td>
+                      <td style={{ ...styles.td, textAlign: 'right', color: rpm >= 1.50 ? colors.green : colors.orange }}>{formatCurrency(rpm)}</td>
+                      <td style={styles.td}>
+                        <button style={{ ...styles.btn('secondary'), padding: '10px 20px' }} onClick={() => { setEditingLoad(load); setShowLoadModal(true); }}>Edit</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={styles.emptyState}>
+            <div style={styles.emptyIcon}>📦</div>
+            <h3 style={{ color: colors.white, marginBottom: 16, fontSize: 24 }}>No Loads Yet</h3>
+            <p style={{ marginBottom: 32, fontSize: 16 }}>Start tracking your loads to calculate revenue and profit per mile.</p>
+            <button style={styles.btn('primary')} onClick={() => { setEditingLoad(null); setShowLoadModal(true); }}>
+              ➕ Add Your First Load
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 
   const renderCPM = () => {
-    const categories = [
-      { key: 'fuel', label: 'Fuel', icon: '⛽', desc: 'Diesel fuel costs' },
-      { key: 'maintenance', label: 'Maintenance/Repairs', icon: '🔧', desc: 'Oil, tires, repairs' },
-      { key: 'insurance', label: 'Insurance', icon: '🛡️', desc: 'Truck insurance' },
-      { key: 'truckPayment', label: 'Truck Payment', icon: '🚛', desc: 'Loan/lease payment' },
-      { key: 'tolls', label: 'Tolls', icon: '🛣️', desc: 'Highway tolls' },
-      { key: 'permits', label: 'Permits & Fees', icon: '📄', desc: 'IFTA, IRP, etc.' },
-      { key: 'parking', label: 'Parking', icon: '🅿️', desc: 'Truck stops' },
-      { key: 'communication', label: 'Communication', icon: '📱', desc: 'Phone, ELD' },
-      { key: 'lumper', label: 'Lumper Fees', icon: '📦', desc: 'Loading/unloading' },
-      { key: 'scales', label: 'Scales', icon: '⚖️', desc: 'CAT scales' },
-      { key: 'other', label: 'Other', icon: '💳', desc: 'Misc expenses' },
-    ];
-
-    const handleChange = (key, value) => {
-      setCpmData({ ...cpmData, [key]: parseFloat(value) || 0 });
+    const handleChange = (field, value) => {
+      setCpmData({ ...cpmData, [field]: parseFloat(value) || 0 });
     };
+
+    const costItems = [
+      { key: 'fuel', label: 'Fuel', icon: '⛽' },
+      { key: 'maintenance', label: 'Maintenance & Repairs', icon: '🔧' },
+      { key: 'insurance', label: 'Insurance', icon: '🛡️' },
+      { key: 'truckPayment', label: 'Truck Payment', icon: '🚛' },
+      { key: 'tolls', label: 'Tolls', icon: '🛣️' },
+      { key: 'permits', label: 'Permits & Licenses', icon: '📋' },
+      { key: 'parking', label: 'Parking', icon: '🅿️' },
+      { key: 'communication', label: 'Phone/ELD', icon: '📱' },
+      { key: 'lumper', label: 'Lumper Fees', icon: '📦' },
+      { key: 'scales', label: 'Scale Fees', icon: '⚖️' },
+      { key: 'other', label: 'Other', icon: '📝' },
+    ];
 
     return (
       <div>
         <div style={styles.pageHeader}>
           <h1 style={styles.pageTitle}>🧮 Cost Per Mile Calculator</h1>
-          <p style={styles.pageSubtitle}>Calculate your true operating cost per mile</p>
+          <p style={styles.pageSubtitle}>Calculate your true operating cost per mile to price loads profitably</p>
         </div>
 
         <div style={styles.statsGrid}>
-          <div style={{ ...styles.statCard(colors.orange), gridColumn: 'span 2' }}>
-            <div style={styles.statIcon}>🚛</div>
+          <div style={styles.statCard(colors.orange)}>
+            <div style={styles.statIcon}>🧮</div>
             <div style={styles.statValue(colors.orange)}>{formatCurrency(stats.cpm)}</div>
-            <div style={styles.statLabel}>Your Cost Per Mile</div>
+            <div style={styles.statLabel}>Cost Per Mile</div>
           </div>
           <div style={styles.statCard()}>
-            <div style={styles.statIcon}>📊</div>
-            <div style={styles.statValue()}>{formatCurrency(stats.totalOperatingCosts)}</div>
-            <div style={styles.statLabel}>Total Monthly Costs</div>
+            <div style={styles.statIcon}>🛣️</div>
+            <div style={styles.statValue()}>{formatNumber(cpmData.totalMiles)}</div>
+            <div style={styles.statLabel}>Total Miles</div>
+          </div>
+          <div style={styles.statCard(colors.red)}>
+            <div style={styles.statIcon}>💸</div>
+            <div style={styles.statValue(colors.red)}>{formatCurrency(stats.totalOperatingCosts)}</div>
+            <div style={styles.statLabel}>Total Operating Costs</div>
           </div>
           <div style={styles.statCard(colors.green)}>
-            <div style={styles.statIcon}>💰</div>
+            <div style={styles.statIcon}>🎯</div>
             <div style={styles.statValue(colors.green)}>{formatCurrency(stats.cpm * 1.2)}</div>
-            <div style={styles.statLabel}>Break-Even Rate (+20%)</div>
+            <div style={styles.statLabel}>Min Rate (20% Profit)</div>
           </div>
         </div>
 
         <div style={styles.card}>
           <div style={styles.cardTitle}>Monthly Operating Costs</div>
           
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Total Miles This Month</label>
+          <div style={{ marginBottom: 40 }}>
+            <label style={styles.label}>Total Miles Driven (Monthly)</label>
             <input
               type="number"
               value={cpmData.totalMiles}
               onChange={(e) => handleChange('totalMiles', e.target.value)}
-              style={{ ...styles.input, maxWidth: 200 }}
+              style={{ ...styles.input, maxWidth: 320 }}
+              placeholder="e.g., 8000"
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, marginTop: 24 }}>
-            {categories.map(cat => {
-              const value = cpmData[cat.key];
-              const cpmVal = value / cpmData.totalMiles || 0;
-              const pctTotal = (value / stats.totalOperatingCosts) * 100 || 0;
-              return (
-                <div key={cat.key} style={{ background: colors.navyDark, borderRadius: 12, padding: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                    <span style={{ fontSize: 24 }}>{cat.icon}</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ color: colors.white, fontWeight: 600 }}>{cat.label}</div>
-                      <div style={{ color: colors.gray500, fontSize: 12 }}>{cat.desc}</div>
-                    </div>
-                  </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 28 }}>
+            {costItems.map(item => (
+              <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+                <span style={{ fontSize: 28, width: 40 }}>{item.icon}</span>
+                <div style={{ flex: 1 }}>
+                  <label style={{ ...styles.label, marginBottom: 8 }}>{item.label}</label>
                   <input
                     type="number"
-                    value={value}
-                    onChange={(e) => handleChange(cat.key, e.target.value)}
-                    style={{ ...styles.input, marginBottom: 12 }}
+                    value={cpmData[item.key]}
+                    onChange={(e) => handleChange(item.key, e.target.value)}
+                    style={styles.input}
                     placeholder="0.00"
                   />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                    <span style={{ color: colors.gray400 }}>{formatCurrency(cpmVal)}/mi</span>
-                    <span style={{ color: colors.orange }}>{pctTotal.toFixed(1)}% of total</span>
-                  </div>
-                  <div style={styles.progressBar}>
-                    <div style={{ width: `${Math.min(pctTotal, 100)}%`, height: '100%', background: colors.orange, transition: 'width 0.3s' }} />
-                  </div>
                 </div>
-              );
-            })}
+                <div style={{ color: colors.gray500, fontSize: 14, minWidth: 90, textAlign: 'right' }}>
+                  {cpmData.totalMiles > 0 ? formatCurrency(cpmData[item.key] / cpmData.totalMiles) : '$0.00'}/mi
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        <div style={{ ...styles.card, background: `linear-gradient(135deg, ${colors.navy}, ${colors.navyDark})` }}>
-          <h3 style={{ color: colors.white, marginBottom: 16 }}>💡 What This Means</h3>
-          <p style={{ color: colors.gray300, lineHeight: 1.8 }}>
-            Your cost per mile of <strong style={{ color: colors.orange }}>{formatCurrency(stats.cpm)}</strong> means you need to 
+        <div style={{ ...styles.card, background: `linear-gradient(135deg, ${colors.orange}, ${colors.orangeDark})` }}>
+          <h3 style={{ color: colors.white, marginBottom: 20, fontSize: 22 }}>💡 Understanding Your Cost Per Mile</h3>
+          <p style={{ color: colors.white, opacity: 0.9, lineHeight: 1.9, fontSize: 16 }}>
+            Your cost per mile is <strong style={{ color: colors.white }}>{formatCurrency(stats.cpm)}</strong>. This means you must 
             charge at least this amount per mile just to break even. To make a profit, aim for rates 
-            of <strong style={{ color: colors.green }}>{formatCurrency(stats.cpm * 1.2)}</strong> per mile (20% profit margin) 
+            of <strong style={{ color: colors.white }}>{formatCurrency(stats.cpm * 1.2)}</strong> per mile (20% profit margin) 
             or higher. Any load paying less than {formatCurrency(stats.cpm)}/mile is losing you money!
           </p>
         </div>
@@ -807,14 +1026,6 @@ export default function App() {
   };
 
   const renderIFTA = () => {
-    const calculateIFTA = (state, miles, fuelPurchased) => {
-      const taxableGallons = miles / stats.fleetMPG;
-      const netGallons = taxableGallons - fuelPurchased;
-      const taxRate = iftaTaxRates[state] || 0.25;
-      const taxDue = netGallons * taxRate;
-      return { taxableGallons, netGallons, taxRate, taxDue };
-    };
-
     const totalTaxDue = iftaData.reduce((sum, row) => {
       const calc = calculateIFTA(row.state, row.miles, row.fuelPurchased);
       return sum + calc.taxDue;
@@ -824,13 +1035,6 @@ export default function App() {
       const newData = [...iftaData];
       newData[index] = { ...newData[index], [field]: parseFloat(value) || 0 };
       setIftaData(newData);
-    };
-
-    const addState = (state) => {
-      if (state && !iftaData.find(d => d.state === state)) {
-        setIftaData([...iftaData, { state, miles: 0, fuelPurchased: 0 }]);
-      }
-      setShowIftaModal(false);
     };
 
     const removeState = (state) => {
@@ -872,7 +1076,7 @@ export default function App() {
         <div style={styles.card}>
           <div style={styles.cardTitle}>
             <span>Fleet MPG: {stats.fleetMPG.toFixed(2)}</span>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 16 }}>
               <select
                 value={iftaQuarter}
                 onChange={(e) => setIftaQuarter(e.target.value)}
@@ -884,85 +1088,106 @@ export default function App() {
                 <option value="Q4 2025">Q4 2025</option>
               </select>
               <button style={styles.btn('primary')} onClick={() => setShowIftaModal(true)}>
-                + Add State
+                ➕ Add State
               </button>
             </div>
           </div>
           
-          <div style={{ overflowX: 'auto' }}>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>State</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Miles</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Taxable Gal</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Fuel Purchased</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Net Gallons</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Tax Rate</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Tax Due/(Credit)</th>
-                  <th style={styles.th}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {iftaData.map((row, idx) => {
-                  const calc = calculateIFTA(row.state, row.miles, row.fuelPurchased);
-                  return (
-                    <tr key={row.state}>
-                      <td style={styles.td}>
-                        <span style={{ background: colors.orange, padding: '4px 10px', borderRadius: 4, fontWeight: 600 }}>{row.state}</span>
-                      </td>
-                      <td style={{ ...styles.td, textAlign: 'right' }}>
-                        <input
-                          type="number"
-                          value={row.miles}
-                          onChange={(e) => handleIftaChange(idx, 'miles', e.target.value)}
-                          style={{ ...styles.input, width: 100, textAlign: 'right' }}
-                        />
-                      </td>
-                      <td style={{ ...styles.td, textAlign: 'right', color: colors.gray400 }}>{formatNumber(calc.taxableGallons, 2)}</td>
-                      <td style={{ ...styles.td, textAlign: 'right' }}>
-                        <input
-                          type="number"
-                          value={row.fuelPurchased}
-                          onChange={(e) => handleIftaChange(idx, 'fuelPurchased', e.target.value)}
-                          style={{ ...styles.input, width: 100, textAlign: 'right' }}
-                        />
-                      </td>
-                      <td style={{ ...styles.td, textAlign: 'right', color: calc.netGallons >= 0 ? colors.orange : colors.teal }}>
-                        {formatNumber(calc.netGallons, 2)}
-                      </td>
-                      <td style={{ ...styles.td, textAlign: 'right' }}>${calc.taxRate.toFixed(3)}</td>
-                      <td style={{ ...styles.td, textAlign: 'right', fontWeight: 600, color: calc.taxDue >= 0 ? colors.red : colors.green }}>
-                        {calc.taxDue >= 0 ? formatCurrency(calc.taxDue) : `(${formatCurrency(Math.abs(calc.taxDue))})`}
-                      </td>
-                      <td style={styles.td}>
-                        <button style={{ ...styles.btn('secondary'), padding: '6px 12px', background: 'rgba(239,68,68,0.2)' }} onClick={() => removeState(row.state)}>
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-                <tr style={{ background: 'rgba(255,255,255,0.05)' }}>
-                  <td style={{ ...styles.td, fontWeight: 700, color: colors.white }}>TOTAL</td>
-                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: colors.white }}>{formatNumber(stats.totalIFTAMiles)}</td>
-                  <td style={styles.td}></td>
-                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: colors.white }}>{formatNumber(stats.totalIFTAFuel)}</td>
-                  <td colSpan="2" style={styles.td}></td>
-                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, fontSize: 18, color: totalTaxDue >= 0 ? colors.red : colors.green }}>
-                    {totalTaxDue >= 0 ? formatCurrency(totalTaxDue) : `(${formatCurrency(Math.abs(totalTaxDue))})`}
-                  </td>
-                  <td style={styles.td}></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          {iftaData.length > 0 ? (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>State</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Miles</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Taxable Gal</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Fuel Purchased</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Net Gallons</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Tax Rate</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Tax Due/(Credit)</th>
+                    <th style={styles.th}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {iftaData.map((row, idx) => {
+                    const calc = calculateIFTA(row.state, row.miles, row.fuelPurchased);
+                    return (
+                      <tr key={row.state}>
+                        <td style={styles.td}>
+                          <span style={{ background: colors.orange, padding: '8px 16px', borderRadius: 8, fontWeight: 600 }}>{row.state}</span>
+                        </td>
+                        <td style={{ ...styles.td, textAlign: 'right' }}>
+                          <input
+                            type="number"
+                            value={row.miles}
+                            onChange={(e) => handleIftaChange(idx, 'miles', e.target.value)}
+                            style={{ ...styles.input, width: 120, textAlign: 'right' }}
+                          />
+                        </td>
+                        <td style={{ ...styles.td, textAlign: 'right', color: colors.gray400 }}>{formatNumber(calc.taxableGallons, 2)}</td>
+                        <td style={{ ...styles.td, textAlign: 'right' }}>
+                          <input
+                            type="number"
+                            value={row.fuelPurchased}
+                            onChange={(e) => handleIftaChange(idx, 'fuelPurchased', e.target.value)}
+                            style={{ ...styles.input, width: 120, textAlign: 'right' }}
+                          />
+                        </td>
+                        <td style={{ ...styles.td, textAlign: 'right', color: calc.netGallons >= 0 ? colors.orange : colors.teal }}>
+                          {formatNumber(calc.netGallons, 2)}
+                        </td>
+                        <td style={{ ...styles.td, textAlign: 'right' }}>${calc.taxRate.toFixed(3)}</td>
+                        <td style={{ ...styles.td, textAlign: 'right', fontWeight: 600, color: calc.taxDue >= 0 ? colors.red : colors.green }}>
+                          {calc.taxDue >= 0 ? formatCurrency(calc.taxDue) : `(${formatCurrency(Math.abs(calc.taxDue))})`}
+                        </td>
+                        <td style={styles.td}>
+                          <button style={{ ...styles.btn('secondary'), padding: '10px 20px', background: 'rgba(239,68,68,0.2)' }} onClick={() => removeState(row.state)}>
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  <tr style={{ background: 'rgba(255,255,255,0.05)' }}>
+                    <td style={{ ...styles.td, fontWeight: 700, color: colors.white }}>TOTAL</td>
+                    <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: colors.white }}>{formatNumber(stats.totalIFTAMiles)}</td>
+                    <td style={styles.td}></td>
+                    <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: colors.white }}>{formatNumber(stats.totalIFTAFuel)}</td>
+                    <td colSpan="2" style={styles.td}></td>
+                    <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, fontSize: 22, color: totalTaxDue >= 0 ? colors.red : colors.green }}>
+                      {totalTaxDue >= 0 ? formatCurrency(totalTaxDue) : `(${formatCurrency(Math.abs(totalTaxDue))})`}
+                    </td>
+                    <td style={styles.td}></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={styles.emptyState}>
+              <div style={styles.emptyIcon}>📋</div>
+              <h3 style={{ color: colors.white, marginBottom: 16, fontSize: 24 }}>No States Added</h3>
+              <p style={{ marginBottom: 32, fontSize: 16 }}>Add states you've driven through to calculate your IFTA tax liability.</p>
+              <button style={styles.btn('primary')} onClick={() => setShowIftaModal(true)}>
+                ➕ Add Your First State
+              </button>
+            </div>
+          )}
         </div>
 
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button style={styles.btn('primary')}>📄 Export Report</button>
-          <button style={styles.btn('secondary')}>🖨️ Print</button>
-        </div>
+        {/* Export Buttons */}
+        {iftaData.length > 0 && (
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+            <button style={styles.btn('primary')} onClick={exportIFTAtoPDF}>
+              📄 Export PDF
+            </button>
+            <button style={styles.btn('primary')} onClick={exportIFTAtoCSV}>
+              📊 Export XLS/CSV
+            </button>
+            <button style={styles.btn('secondary')} onClick={() => window.print()}>
+              🖨️ Print
+            </button>
+          </div>
+        )}
       </div>
     );
   };
@@ -1023,7 +1248,7 @@ export default function App() {
                           type="number"
                           value={row.days}
                           onChange={(e) => handleDaysChange(idx, e.target.value)}
-                          style={{ ...styles.input, width: 80, textAlign: 'center' }}
+                          style={{ ...styles.input, width: 100, textAlign: 'center' }}
                           min="0"
                           max="31"
                         />
@@ -1036,8 +1261,8 @@ export default function App() {
                 <tr style={{ background: 'rgba(255,255,255,0.05)' }}>
                   <td style={{ ...styles.td, fontWeight: 700, color: colors.white }}>ANNUAL TOTAL</td>
                   <td style={{ ...styles.td, textAlign: 'center', fontWeight: 700, color: colors.white }}>{stats.totalDaysOTR}</td>
-                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, fontSize: 18, color: colors.green }}>{formatCurrency(stats.totalPerDiem)}</td>
-                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, fontSize: 18, color: colors.orange }}>{formatCurrency(stats.estimatedTaxSavings)}</td>
+                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, fontSize: 22, color: colors.green }}>{formatCurrency(stats.totalPerDiem)}</td>
+                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, fontSize: 22, color: colors.orange }}>{formatCurrency(stats.estimatedTaxSavings)}</td>
                 </tr>
               </tbody>
             </table>
@@ -1045,18 +1270,14 @@ export default function App() {
         </div>
 
         <div style={{ ...styles.card, background: `linear-gradient(135deg, ${colors.navy}, ${colors.navyDark})` }}>
-          <h3 style={{ color: colors.white, marginBottom: 16 }}>💡 Per Diem Tips</h3>
-          <ul style={{ color: colors.gray300, lineHeight: 2, marginLeft: 20 }}>
+          <h3 style={{ color: colors.white, marginBottom: 24, fontSize: 22 }}>💡 Per Diem Tips</h3>
+          <ul style={{ color: colors.gray300, lineHeight: 2.4, marginLeft: 28, fontSize: 16 }}>
             <li>The IRS allows truck drivers to deduct <strong style={{ color: colors.orange }}>$69/day</strong> for 2025 when away from home overnight</li>
-            <li>Only <strong style={{ color: colors.orange }}>80%</strong> of the per diem amount is deductible (${stats.deductibleRate.toFixed(2)}/day)</li>
-            <li>You must be away from your tax home overnight to qualify</li>
-            <li>Keep a detailed log of your travel days for IRS documentation</li>
-            <li>Per diem is claimed on Schedule C of your tax return</li>
+            <li>Only <strong style={{ color: colors.orange }}>80%</strong> of this amount is deductible, so your actual deduction is <strong style={{ color: colors.green }}>$55.20/day</strong></li>
+            <li>This can significantly reduce your taxable income and save thousands in taxes</li>
+            <li>Keep a log of your travel days - odometer readings, locations visited</li>
+            <li>You don't need receipts for per diem, but you must have documentation of travel days</li>
           </ul>
-        </div>
-
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button style={styles.btn('primary')}>📄 Export Tax Report</button>
         </div>
       </div>
     );
@@ -1066,75 +1287,69 @@ export default function App() {
     <div>
       <div style={styles.pageHeader}>
         <h1 style={styles.pageTitle}>⚙️ Settings</h1>
-        <p style={styles.pageSubtitle}>Manage your BalanceBooks for Trucking preferences</p>
+        <p style={styles.pageSubtitle}>Configure your BalanceBooks Trucking preferences</p>
       </div>
 
       <div style={styles.card}>
-        <h3 style={{ color: colors.white, marginBottom: 20 }}>Company Information</h3>
-        <div style={styles.formGrid}>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Company Name</label>
-            <input type="text" placeholder="Your Trucking LLC" style={styles.input} />
+        <div style={styles.cardTitle}>About BalanceBooks Trucking</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 32 }}>
+          <BalanceBooksLogo size={72} />
+          <div>
+            <h3 style={{ color: colors.white, margin: 0, fontSize: 26 }}>BalanceBooks <span style={{ color: colors.orange }}>Trucking</span></h3>
+            <p style={{ color: colors.gray400, margin: '10px 0 0', fontSize: 15 }}>Version 1.0.0 • Owner-Operator Edition</p>
           </div>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>USDOT Number</label>
-            <input type="text" placeholder="1234567" style={styles.input} />
-          </div>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>MC Number</label>
-            <input type="text" placeholder="MC-123456" style={styles.input} />
-          </div>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>EIN</label>
-            <input type="text" placeholder="12-3456789" style={styles.input} />
-          </div>
+        </div>
+        <div style={{ background: colors.navyDark, borderRadius: 16, padding: 28, marginBottom: 28 }}>
+          <p style={{ color: colors.gray300, lineHeight: 1.9, margin: 0, fontSize: 15 }}>
+            BalanceBooks Trucking is a privacy-first financial management application designed specifically for owner-operators. 
+            All your data stays on your device - we never upload or store your information on external servers.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <span style={{ background: colors.green, color: colors.white, padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600 }}>🔒 100% Offline</span>
+          <span style={{ background: colors.teal, color: colors.white, padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600 }}>🛡️ Privacy-First</span>
+          <span style={{ background: colors.orange, color: colors.white, padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600 }}>🚛 Built for Truckers</span>
         </div>
       </div>
 
       <div style={styles.card}>
-        <h3 style={{ color: colors.white, marginBottom: 20 }}>Tax Settings</h3>
-        <div style={styles.formGrid}>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Tax Bracket (%)</label>
-            <input type="number" placeholder="25" defaultValue="25" style={styles.input} />
-          </div>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Tax Year</label>
-            <select style={styles.input}>
-              <option value="2025">2025</option>
-              <option value="2024">2024</option>
-            </select>
-          </div>
+        <div style={styles.cardTitle}>Data Management</div>
+        <p style={{ color: colors.gray400, marginBottom: 32, fontSize: 15 }}>Export or clear your data. Exports can be used to backup your information.</p>
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+          <button style={styles.btn('primary')} onClick={() => {
+            const data = { fuelEntries, loads, cpmData, perDiemData, iftaData, exportDate: new Date().toISOString() };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `balancebooks-trucking-backup-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }}>
+            💾 Export All Data
+          </button>
+          <button style={{ ...styles.btn('secondary'), background: 'rgba(239,68,68,0.2)' }} onClick={() => {
+            if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
+              setFuelEntries([]);
+              setLoads([]);
+              setCpmData({ totalMiles: 0, fuel: 0, maintenance: 0, insurance: 0, truckPayment: 0, tolls: 0, permits: 0, parking: 0, communication: 0, lumper: 0, scales: 0, other: 0 });
+              setPerDiemData(perDiemData.map(m => ({ ...m, days: 0 })));
+              setIftaData([]);
+            }
+          }}>
+            🗑️ Clear All Data
+          </button>
         </div>
-      </div>
-
-      <div style={styles.card}>
-        <h3 style={{ color: colors.white, marginBottom: 20 }}>Data Management</h3>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <button style={styles.btn('primary')}>📤 Export All Data</button>
-          <button style={styles.btn('secondary')}>📥 Import Data</button>
-          <button style={{ ...styles.btn('secondary'), background: 'rgba(239,68,68,0.2)' }}>🗑️ Clear All Data</button>
-        </div>
-      </div>
-
-      <div style={styles.card}>
-        <h3 style={{ color: colors.white, marginBottom: 20 }}>About</h3>
-        <p style={{ color: colors.gray400, lineHeight: 1.8 }}>
-          <strong style={{ color: colors.white }}>BalanceBooks for Trucking</strong><br />
-          Version 1.0.0<br /><br />
-          Owner-operator financial management made simple. Track your loads, calculate your true costs, 
-          and maximize your profitability.<br /><br />
-          <span style={{ color: colors.orange }}>🔒 100% Offline</span> • <span style={{ color: colors.teal }}>🛡️ Privacy-First</span> • <span style={{ color: colors.green }}>💎 Pay Once, Own Forever</span>
-        </p>
       </div>
     </div>
   );
 
   // ========== MODALS ==========
+
   const FuelModal = () => {
     const [form, setForm] = useState(editingFuel || {
       date: new Date().toISOString().split('T')[0],
-      state: '',
+      state: 'TX',
       location: '',
       gallons: '',
       pricePerGal: '',
@@ -1142,20 +1357,28 @@ export default function App() {
     });
 
     const handleSubmit = () => {
-      if (!form.state || !form.gallons || !form.pricePerGal) return;
+      const entry = {
+        ...form,
+        id: editingFuel?.id || Date.now(),
+        gallons: parseFloat(form.gallons) || 0,
+        pricePerGal: parseFloat(form.pricePerGal) || 0,
+        odometer: parseFloat(form.odometer) || 0
+      };
       
       if (editingFuel) {
-        setFuelEntries(fuelEntries.map(e => e.id === editingFuel.id ? { ...form, id: editingFuel.id } : e));
+        setFuelEntries(fuelEntries.map(e => e.id === entry.id ? entry : e));
       } else {
-        setFuelEntries([...fuelEntries, { ...form, id: Date.now(), gallons: parseFloat(form.gallons), pricePerGal: parseFloat(form.pricePerGal), odometer: parseFloat(form.odometer) }]);
+        setFuelEntries([...fuelEntries, entry]);
       }
       setShowFuelModal(false);
+      setEditingFuel(null);
     };
 
     return (
       <div style={styles.modal} onClick={() => setShowFuelModal(false)}>
         <div style={styles.modalContent} onClick={e => e.stopPropagation()}>
-          <h2 style={{ color: colors.white, marginBottom: 24 }}>{editingFuel ? 'Edit' : 'Add'} Fuel Entry</h2>
+          <h2 style={{ color: colors.white, marginBottom: 36, fontSize: 28 }}>{editingFuel ? 'Edit' : 'Add'} Fuel Entry</h2>
+          
           <div style={styles.formGrid}>
             <div style={styles.formGroup}>
               <label style={styles.label}>Date</label>
@@ -1164,28 +1387,28 @@ export default function App() {
             <div style={styles.formGroup}>
               <label style={styles.label}>State</label>
               <select value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} style={styles.input}>
-                <option value="">Select State</option>
                 {Object.keys(iftaTaxRates).sort().map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            <div style={{ ...styles.formGroup, gridColumn: 'span 2' }}>
+            <div style={{ ...styles.formGroup, gridColumn: '1 / -1' }}>
               <label style={styles.label}>Location</label>
               <input type="text" placeholder="e.g., Dallas - Loves #405" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} style={styles.input} />
             </div>
             <div style={styles.formGroup}>
               <label style={styles.label}>Gallons</label>
-              <input type="number" step="0.1" value={form.gallons} onChange={e => setForm({ ...form, gallons: e.target.value })} style={styles.input} />
+              <input type="number" step="0.01" value={form.gallons} onChange={e => setForm({ ...form, gallons: e.target.value })} style={styles.input} placeholder="180" />
             </div>
             <div style={styles.formGroup}>
-              <label style={styles.label}>Price Per Gallon</label>
-              <input type="number" step="0.01" value={form.pricePerGal} onChange={e => setForm({ ...form, pricePerGal: e.target.value })} style={styles.input} />
+              <label style={styles.label}>Price/Gallon</label>
+              <input type="number" step="0.001" value={form.pricePerGal} onChange={e => setForm({ ...form, pricePerGal: e.target.value })} style={styles.input} placeholder="3.45" />
             </div>
-            <div style={{ ...styles.formGroup, gridColumn: 'span 2' }}>
+            <div style={styles.formGroup}>
               <label style={styles.label}>Odometer</label>
-              <input type="number" value={form.odometer} onChange={e => setForm({ ...form, odometer: e.target.value })} style={styles.input} />
+              <input type="number" value={form.odometer} onChange={e => setForm({ ...form, odometer: e.target.value })} style={styles.input} placeholder="125000" />
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+
+          <div style={{ display: 'flex', gap: 20, marginTop: 40 }}>
             <button style={styles.btn('primary')} onClick={handleSubmit}>{editingFuel ? 'Update' : 'Add'} Entry</button>
             <button style={styles.btn('secondary')} onClick={() => setShowFuelModal(false)}>Cancel</button>
           </div>
@@ -1196,19 +1419,26 @@ export default function App() {
 
   const LoadModal = () => {
     const [form, setForm] = useState(editingLoad || {
-      loadNum: `2025-${String(loads.length + 1).padStart(3, '0')}`,
+      loadNum: `${new Date().getFullYear()}-${String(loads.length + 1).padStart(3, '0')}`,
       date: new Date().toISOString().split('T')[0],
-      origin: '', dest: '',
-      loadedMiles: '', deadhead: 0,
-      lineHaul: '', fsc: '', other: 0,
-      fuelCost: '', tolls: '', scales: '', parking: '', lumper: 0
+      origin: '',
+      dest: '',
+      loadedMiles: '',
+      deadhead: '0',
+      lineHaul: '',
+      fsc: '',
+      other: '0',
+      fuelCost: '',
+      tolls: '0',
+      scales: '12',
+      parking: '0',
+      lumper: '0'
     });
 
     const handleSubmit = () => {
-      if (!form.origin || !form.dest || !form.loadedMiles || !form.lineHaul) return;
-      
-      const processedForm = {
+      const load = {
         ...form,
+        id: editingLoad?.id || Date.now(),
         loadedMiles: parseFloat(form.loadedMiles) || 0,
         deadhead: parseFloat(form.deadhead) || 0,
         lineHaul: parseFloat(form.lineHaul) || 0,
@@ -1218,23 +1448,24 @@ export default function App() {
         tolls: parseFloat(form.tolls) || 0,
         scales: parseFloat(form.scales) || 0,
         parking: parseFloat(form.parking) || 0,
-        lumper: parseFloat(form.lumper) || 0,
+        lumper: parseFloat(form.lumper) || 0
       };
       
       if (editingLoad) {
-        setLoads(loads.map(l => l.id === editingLoad.id ? { ...processedForm, id: editingLoad.id } : l));
+        setLoads(loads.map(l => l.id === load.id ? load : l));
       } else {
-        setLoads([...loads, { ...processedForm, id: Date.now() }]);
+        setLoads([...loads, load]);
       }
       setShowLoadModal(false);
+      setEditingLoad(null);
     };
 
     return (
       <div style={styles.modal} onClick={() => setShowLoadModal(false)}>
-        <div style={{ ...styles.modalContent, maxWidth: 700 }} onClick={e => e.stopPropagation()}>
-          <h2 style={{ color: colors.white, marginBottom: 24 }}>{editingLoad ? 'Edit' : 'Add'} Load</h2>
+        <div style={{ ...styles.modalContent, maxWidth: 760 }} onClick={e => e.stopPropagation()}>
+          <h2 style={{ color: colors.white, marginBottom: 36, fontSize: 28 }}>{editingLoad ? 'Edit' : 'Add'} Load</h2>
           
-          <h4 style={{ color: colors.gray400, marginBottom: 12, fontSize: 12, textTransform: 'uppercase' }}>Load Details</h4>
+          <h4 style={{ color: colors.gray400, marginBottom: 20, fontSize: 13, textTransform: 'uppercase', letterSpacing: '1px' }}>Load Details</h4>
           <div style={styles.formGrid}>
             <div style={styles.formGroup}>
               <label style={styles.label}>Load #</label>
@@ -1262,7 +1493,7 @@ export default function App() {
             </div>
           </div>
 
-          <h4 style={{ color: colors.green, marginBottom: 12, marginTop: 20, fontSize: 12, textTransform: 'uppercase' }}>Revenue</h4>
+          <h4 style={{ color: colors.green, marginBottom: 20, marginTop: 36, fontSize: 13, textTransform: 'uppercase', letterSpacing: '1px' }}>Revenue</h4>
           <div style={styles.formGrid}>
             <div style={styles.formGroup}>
               <label style={styles.label}>Line Haul</label>
@@ -1278,7 +1509,7 @@ export default function App() {
             </div>
           </div>
 
-          <h4 style={{ color: colors.orange, marginBottom: 12, marginTop: 20, fontSize: 12, textTransform: 'uppercase' }}>Expenses</h4>
+          <h4 style={{ color: colors.orange, marginBottom: 20, marginTop: 36, fontSize: 13, textTransform: 'uppercase', letterSpacing: '1px' }}>Expenses</h4>
           <div style={styles.formGrid}>
             <div style={styles.formGroup}>
               <label style={styles.label}>Fuel Cost</label>
@@ -1302,7 +1533,7 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+          <div style={{ display: 'flex', gap: 20, marginTop: 40 }}>
             <button style={styles.btn('primary')} onClick={handleSubmit}>{editingLoad ? 'Update' : 'Add'} Load</button>
             <button style={styles.btn('secondary')} onClick={() => setShowLoadModal(false)}>Cancel</button>
           </div>
@@ -1318,7 +1549,7 @@ export default function App() {
     return (
       <div style={styles.modal} onClick={() => setShowIftaModal(false)}>
         <div style={styles.modalContent} onClick={e => e.stopPropagation()}>
-          <h2 style={{ color: colors.white, marginBottom: 24 }}>Add State</h2>
+          <h2 style={{ color: colors.white, marginBottom: 36, fontSize: 28 }}>Add State</h2>
           <div style={styles.formGroup}>
             <label style={styles.label}>Select State</label>
             <select value={selectedState} onChange={e => setSelectedState(e.target.value)} style={styles.input}>
@@ -1326,8 +1557,13 @@ export default function App() {
               {availableStates.map(s => <option key={s} value={s}>{s} (${iftaTaxRates[s].toFixed(3)}/gal)</option>)}
             </select>
           </div>
-          <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
-            <button style={styles.btn('primary')} onClick={() => selectedState && setIftaData([...iftaData, { state: selectedState, miles: 0, fuelPurchased: 0 }]) || setShowIftaModal(false)}>Add State</button>
+          <div style={{ display: 'flex', gap: 20, marginTop: 40 }}>
+            <button style={styles.btn('primary')} onClick={() => {
+              if (selectedState) {
+                setIftaData([...iftaData, { state: selectedState, miles: 0, fuelPurchased: 0 }]);
+                setShowIftaModal(false);
+              }
+            }}>Add State</button>
             <button style={styles.btn('secondary')} onClick={() => setShowIftaModal(false)}>Cancel</button>
           </div>
         </div>
@@ -1354,11 +1590,14 @@ export default function App() {
       {/* Sidebar */}
       <div style={styles.sidebar}>
         <div style={styles.logo} onClick={() => setSidebarCollapsed(!sidebarCollapsed)}>
-          <span style={styles.logoIcon}>🚛</span>
+          <BalanceBooksLogo size={sidebarCollapsed ? 40 : 48} />
           {!sidebarCollapsed && (
-            <span style={styles.logoText}>
-              Balance<span style={{ color: colors.orange }}>Books</span>
-            </span>
+            <div>
+              <div style={styles.logoText}>
+                Balance<span style={{ color: colors.orange }}>Books</span>
+              </div>
+              <div style={styles.logoSubtext}>Trucking</div>
+            </div>
           )}
         </div>
         <ul style={styles.nav}>
@@ -1370,15 +1609,15 @@ export default function App() {
               onMouseEnter={(e) => { if (activeTab !== item.id) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = colors.white; }}
               onMouseLeave={(e) => { if (activeTab !== item.id) e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = colors.gray400; }}
             >
-              <span style={{ fontSize: 18 }}>{item.icon}</span>
+              <span style={{ fontSize: 22 }}>{item.icon}</span>
               {!sidebarCollapsed && item.label}
             </li>
           ))}
         </ul>
         {!sidebarCollapsed && (
-          <div style={{ padding: '20px', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 'auto' }}>
-            <div style={{ fontSize: 11, color: colors.gray500, textAlign: 'center' }}>
-              🔒 100% Offline • 🛡️ Privacy-First
+          <div style={{ padding: '28px', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 'auto' }}>
+            <div style={{ fontSize: 13, color: colors.gray500, textAlign: 'center', lineHeight: 1.7 }}>
+              🔒 100% Offline<br />🛡️ Privacy-First
             </div>
           </div>
         )}
