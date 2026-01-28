@@ -1803,7 +1803,7 @@ export default function App() {
                   <td style={styles.td}><span style={styles.badge(colors.blue)}>{entry.state}</span></td>
                   <td style={styles.td}>{parseFloat(entry.gallons).toFixed(2)}</td>
                   <td style={styles.td}>{formatCurrency(entry.pricePerGallon)}</td>
-                  <td style={styles.td} style={{ fontWeight: 600, color: colors.orange }}>
+                  <td style={{ ...styles.td, fontWeight: 600, color: colors.orange }}>
                     {formatCurrency(entry.totalAmount || (parseFloat(entry.gallons) * parseFloat(entry.pricePerGallon)))}
                   </td>
                   <td style={styles.tdLast}>
@@ -1929,10 +1929,10 @@ export default function App() {
                       </div>
                     </td>
                     <td style={styles.td}>{formatNumber(totalMiles)}</td>
-                    <td style={styles.td} style={{ fontWeight: 600, color: colors.green }}>
+                    <td style={{ ...styles.td, fontWeight: 600, color: colors.green }}>
                       {formatCurrency(load.rate)}
                     </td>
-                    <td style={styles.td} style={{ color: rpm >= 2 ? colors.green : colors.yellow }}>
+                    <td style={{ ...styles.td, color: rpm >= 2 ? colors.green : colors.yellow }}>
                       {formatCurrency(rpm)}
                     </td>
                     <td style={styles.td}>
