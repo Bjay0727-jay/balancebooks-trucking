@@ -83,6 +83,24 @@ const formatPayRate = (payType, payRate) => {
   }
 };
 
+// Calculate driver pay for a load
+const calculateDriverPay = (load, driver) => {
+  if (!load || !driver) return 0;
+  const { paymentType, payRate } = driver;
+  const loadedMiles = parseFloat(load.loadedMiles) || 0;
+  const deadheadMiles = parseFloat(load.deadheadMiles) || 0;
+  const totalMiles = loadedMiles + deadheadMiles;
+  const grossRevenue = parseFloat(load.rate) || 0;
+  const rate = parseFloat(payRate) || 0;
+
+  switch (paymentType) {
+    case PAY_TYPES.PER_MILE: return totalMiles * rate;
+    case PAY_TYPES.PERCENTAGE: return grossRevenue * (rate / 100);
+    case PAY_TYPES.FLAT_RATE: return rate;
+    default: return 0;
+  }
+};
+
 // Major US Cities and Truck Stops for Autocomplete
 const US_LOCATIONS = [
   // Major Cities
@@ -1277,6 +1295,7 @@ export default function App() {
       loadNumber: '',
       broker: '',
       rate: '',
+      driverId: '', // Driver assignment
       stops: [
         { type: 'origin', location: '', city: '', state: '', lat: null, lng: null },
         { type: 'destination', location: '', city: '', state: '', lat: null, lng: null },
@@ -1391,10 +1410,19 @@ export default function App() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 28 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24, marginBottom: 28 }}>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Broker / Customer</label>
                 <input type="text" value={form.broker} onChange={e => setForm({...form, broker: e.target.value})} placeholder="e.g., C.H. Robinson" style={styles.input} />
+              </div>
+              <div style={styles.formGroup}>
+                <label style={styles.label}>Driver</label>
+                <select style={styles.select} value={form.driverId || ''} onChange={e => setForm({...form, driverId: e.target.value})}>
+                  <option value="">Select Driver</option>
+                  {drivers.filter(d => d.status === 'active').map(driver => (
+                    <option key={driver.id} value={driver.id}>{driver.firstName} {driver.lastName}</option>
+                  ))}
+                </select>
               </div>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Rate ($)</label>
@@ -2392,7 +2420,11 @@ export default function App() {
   );
 
   // ============ LOADS VIEW ============
-  const renderLoads = () => (
+  const renderLoads = () => {
+    // Helper to get driver for a load
+    const getLoadDriver = (load) => drivers.find(d => d.id === load.driverId);
+    
+    return (
     <>
       <div style={styles.header}>
         <h1 style={styles.pageTitle}>Loads</h1>
@@ -2414,10 +2446,11 @@ export default function App() {
                 <th style={styles.th}>Date</th>
                 <th style={styles.th}>Load #</th>
                 <th style={styles.th}>Route</th>
-                <th style={styles.th}>Stops</th>
+                <th style={styles.th}>Driver</th>
                 <th style={styles.th}>Loaded</th>
                 <th style={styles.th}>Deadhead</th>
                 <th style={styles.th}>Rate</th>
+                <th style={styles.th}>Driver Pay</th>
                 <th style={styles.th}>Actions</th>
               </tr>
             </thead>
@@ -2425,6 +2458,8 @@ export default function App() {
               {[...loads].reverse().map(load => {
                 const origin = load.stops?.[0]?.location || 'N/A';
                 const dest = load.stops?.[load.stops.length - 1]?.location || 'N/A';
+                const driver = getLoadDriver(load);
+                const driverPay = driver ? calculateDriverPay(load, driver) : 0;
                 return (
                   <tr key={load.id}>
                     <td 
@@ -2446,21 +2481,22 @@ export default function App() {
                       </div>
                     </td>
                     <td style={styles.td}>
-                      <span style={{ 
-                        background: colors.orange, 
-                        padding: '4px 12px', 
-                        borderRadius: 20, 
-                        fontSize: 13,
-                        fontWeight: 600
-                      }}>
-                        {load.stops?.length || 2}
-                      </span>
+                      {driver ? (
+                        <span style={{ display: 'inline-block', padding: '4px 12px', background: `${colors.blue}20`, color: colors.blue, borderRadius: 16, fontSize: 13, fontWeight: 600 }}>
+                          {driver.firstName} {driver.lastName?.charAt(0)}.
+                        </span>
+                      ) : (
+                        <span style={{ color: colors.gray500, fontSize: 13 }}>Unassigned</span>
+                      )}
                     </td>
                     <td style={styles.td}>{formatNumber(load.loadedMiles)} mi</td>
                     <td style={{ ...styles.td, color: load.deadheadMiles > 0 ? colors.red : colors.gray500 }}>
                       {formatNumber(load.deadheadMiles || 0)} mi
                     </td>
                     <td style={{ ...styles.td, color: colors.green, fontWeight: 700 }}>{formatCurrency(load.rate)}</td>
+                    <td style={{ ...styles.td, color: driverPay > 0 ? colors.orange : colors.gray500, fontWeight: 600 }}>
+                      {driverPay > 0 ? formatCurrency(driverPay) : '-'}
+                    </td>
                     <td style={{ ...styles.td, borderRadius: '0 14px 14px 0' }}>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button 
@@ -2494,7 +2530,8 @@ export default function App() {
         )}
       </div>
     </>
-  );
+    );
+  };
 
   // ============ FUEL VIEW ============
   const renderFuel = () => (
@@ -3359,6 +3396,25 @@ export default function App() {
       }
     };
 
+    // Calculate driver stats
+    const getDriverStats = (driverId) => {
+      const driverLoads = loads.filter(l => l.driverId === driverId);
+      const driver = drivers.find(d => d.id === driverId);
+      const totalLoads = driverLoads.length;
+      const totalMiles = driverLoads.reduce((sum, l) => sum + (parseFloat(l.loadedMiles) || 0) + (parseFloat(l.deadheadMiles) || 0), 0);
+      const totalRevenue = driverLoads.reduce((sum, l) => sum + (parseFloat(l.rate) || 0), 0);
+      const totalPay = driverLoads.reduce((sum, l) => sum + (driver ? calculateDriverPay(l, driver) : 0), 0);
+      return { totalLoads, totalMiles, totalRevenue, totalPay };
+    };
+
+    // Calculate totals across all drivers
+    const totalDriverPay = drivers.reduce((sum, driver) => {
+      const stats = getDriverStats(driver.id);
+      return sum + stats.totalPay;
+    }, 0);
+
+    const totalAssignedLoads = loads.filter(l => l.driverId).length;
+
     return (
       <>
         <div style={styles.header}>
@@ -3372,17 +3428,66 @@ export default function App() {
             <div style={styles.statValue(colors.green)}>{drivers.filter(d => d.status === 'active').length}</div>
             <div style={styles.statLabel}>Active Drivers</div>
           </div>
-          <div style={styles.statCard(colors.orange)}>
-            <div style={styles.statIcon}>👥</div>
-            <div style={styles.statValue(colors.orange)}>{drivers.length}</div>
-            <div style={styles.statLabel}>Total Drivers</div>
-          </div>
-          <div style={styles.statCard(colors.teal)}>
+          <div style={styles.statCard(colors.blue)}>
             <div style={styles.statIcon}>🚛</div>
-            <div style={styles.statValue(colors.teal)}>{drivers.filter(d => d.assignedTruckId).length}</div>
-            <div style={styles.statLabel}>Assigned to Trucks</div>
+            <div style={styles.statValue(colors.blue)}>{totalAssignedLoads}</div>
+            <div style={styles.statLabel}>Assigned Loads</div>
+          </div>
+          <div style={styles.statCard(colors.orange)}>
+            <div style={styles.statIcon}>💰</div>
+            <div style={styles.statValue(colors.orange)}>{formatCurrency(totalDriverPay)}</div>
+            <div style={styles.statLabel}>Total Driver Pay</div>
           </div>
         </div>
+
+        {/* Driver Pay Report Card */}
+        {drivers.length > 0 && (
+          <div style={styles.card}>
+            <div style={styles.cardTitle}>
+              <span>📊 Driver Pay Report</span>
+            </div>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Driver</th>
+                  <th style={styles.th}>Pay Type</th>
+                  <th style={styles.th}>Rate</th>
+                  <th style={styles.th}>Loads</th>
+                  <th style={styles.th}>Miles</th>
+                  <th style={styles.th}>Revenue</th>
+                  <th style={styles.th}>Driver Pay</th>
+                  <th style={styles.th}>Profit After Pay</th>
+                </tr>
+              </thead>
+              <tbody>
+                {drivers.filter(d => d.status === 'active').map(driver => {
+                  const stats = getDriverStats(driver.id);
+                  const profit = stats.totalRevenue - stats.totalPay;
+                  return (
+                    <tr key={driver.id}>
+                      <td style={{ ...styles.td, borderRadius: '12px 0 0 12px', fontWeight: 600 }}>
+                        {driver.firstName} {driver.lastName}
+                      </td>
+                      <td style={styles.td}>
+                        <span style={{ textTransform: 'capitalize' }}>{driver.paymentType?.replace('_', ' ')}</span>
+                      </td>
+                      <td style={styles.td}>
+                        <span style={{ color: colors.orange, fontWeight: 600 }}>{formatPayRate(driver.paymentType, driver.payRate)}</span>
+                      </td>
+                      <td style={styles.td}>{stats.totalLoads}</td>
+                      <td style={styles.td}>{formatNumber(stats.totalMiles)} mi</td>
+                      <td style={{ ...styles.td, color: colors.green, fontWeight: 600 }}>{formatCurrency(stats.totalRevenue)}</td>
+                      <td style={{ ...styles.td, color: colors.orange, fontWeight: 600 }}>{formatCurrency(stats.totalPay)}</td>
+                      <td style={{ ...styles.td, borderRadius: '0 12px 12px 0', color: profit >= 0 ? colors.teal : colors.red, fontWeight: 600 }}>
+                        {formatCurrency(profit)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <div style={styles.card}>
           <div style={styles.cardTitle}>
