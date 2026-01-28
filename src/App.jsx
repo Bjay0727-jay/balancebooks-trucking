@@ -2421,8 +2421,11 @@ export default function App() {
 
   // ============ LOADS VIEW ============
   const renderLoads = () => {
-    // Helper to get driver for a load
-    const getLoadDriver = (load) => drivers.find(d => d.id === load.driverId);
+    // Helper to get driver for a load - with safety checks
+    const getLoadDriver = (load) => {
+      if (!load || !load.driverId) return null;
+      return drivers.find(d => d.id === load.driverId) || null;
+    };
     
     return (
     <>
@@ -2447,8 +2450,7 @@ export default function App() {
                 <th style={styles.th}>Load #</th>
                 <th style={styles.th}>Route</th>
                 <th style={styles.th}>Driver</th>
-                <th style={styles.th}>Loaded</th>
-                <th style={styles.th}>Deadhead</th>
+                <th style={styles.th}>Miles</th>
                 <th style={styles.th}>Rate</th>
                 <th style={styles.th}>Driver Pay</th>
                 <th style={styles.th}>Actions</th>
@@ -2460,6 +2462,7 @@ export default function App() {
                 const dest = load.stops?.[load.stops.length - 1]?.location || 'N/A';
                 const driver = getLoadDriver(load);
                 const driverPay = driver ? calculateDriverPay(load, driver) : 0;
+                const totalMiles = (parseInt(load.loadedMiles) || 0) + (parseInt(load.deadheadMiles) || 0);
                 return (
                   <tr key={load.id}>
                     <td 
@@ -2476,24 +2479,21 @@ export default function App() {
                     </td>
                     <td style={styles.td}>
                       <div>
-                        <div style={{ color: colors.white }}>{origin.split(',')[0]}</div>
-                        <div style={{ color: colors.gray500, fontSize: 13 }}>to {dest.split(',')[0]}</div>
+                        <div style={{ color: colors.white }}>{String(origin).split(',')[0]}</div>
+                        <div style={{ color: colors.gray500, fontSize: 13 }}>to {String(dest).split(',')[0]}</div>
                       </div>
                     </td>
                     <td style={styles.td}>
                       {driver ? (
                         <span style={{ display: 'inline-block', padding: '4px 12px', background: `${colors.blue}20`, color: colors.blue, borderRadius: 16, fontSize: 13, fontWeight: 600 }}>
-                          {driver.firstName} {driver.lastName?.charAt(0)}.
+                          {driver.firstName || ''} {(driver.lastName || '').charAt(0)}.
                         </span>
                       ) : (
-                        <span style={{ color: colors.gray500, fontSize: 13 }}>Unassigned</span>
+                        <span style={{ color: colors.gray500, fontSize: 13 }}>-</span>
                       )}
                     </td>
-                    <td style={styles.td}>{formatNumber(load.loadedMiles)} mi</td>
-                    <td style={{ ...styles.td, color: load.deadheadMiles > 0 ? colors.red : colors.gray500 }}>
-                      {formatNumber(load.deadheadMiles || 0)} mi
-                    </td>
-                    <td style={{ ...styles.td, color: colors.green, fontWeight: 700 }}>{formatCurrency(load.rate)}</td>
+                    <td style={styles.td}>{formatNumber(totalMiles)} mi</td>
+                    <td style={{ ...styles.td, color: colors.green, fontWeight: 700 }}>{formatCurrency(load.rate || 0)}</td>
                     <td style={{ ...styles.td, color: driverPay > 0 ? colors.orange : colors.gray500, fontWeight: 600 }}>
                       {driverPay > 0 ? formatCurrency(driverPay) : '-'}
                     </td>
