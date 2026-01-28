@@ -238,6 +238,8 @@ const formatCentsPerMile = (dollars) => {
     return cents.toFixed(1) + '¢/mi';
   }
   // Less than 1 cent - show 2 decimal places (e.g., "0.15¢/mi")
+  return cents.toFixed(2) + '¢/mi';
+};
 
 // ============ MULTI-SELECT HOOK ============
 const useMultiSelect = (items = []) => {
@@ -296,7 +298,7 @@ const exportToCSV = (data, columns, filename) => {
       value = String(value).replace(/"/g, '""');
       if (value.includes(',') || value.includes('\n') || value.includes('"')) value = `"${value}"`;
       return value;
-    }).join(',');
+    }).join(',')
   );
   const csv = '\uFEFF' + [headers.join(','), ...rows].join('\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -308,8 +310,6 @@ const exportToCSV = (data, columns, filename) => {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-};
-  return cents.toFixed(2) + '¢/mi';
 };
 
 // Haversine formula for distance calculation
