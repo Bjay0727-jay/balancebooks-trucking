@@ -1311,18 +1311,18 @@ export default function App() {
 
   // ============ LOAD MODAL ============
   const LoadModal = () => {
-    const [form, setForm] = useState(editingLoad || {
+    const defaultForm = {
       date: new Date().toISOString().split('T')[0],
       loadNumber: '',
       broker: '',
       rate: '',
-      driverId: '', // Driver assignment
+      driverId: '',
       stops: [
         { type: 'origin', location: '', city: '', state: '', lat: null, lng: null },
         { type: 'destination', location: '', city: '', state: '', lat: null, lng: null },
       ],
       loadedMiles: '',
-      manualMiles: false, // NEW: Flag for manual miles entry
+      manualMiles: false,
       deadheadMiles: '',
       deadheadOrigin: '',
       deadheadOriginLat: null,
@@ -1330,7 +1330,33 @@ export default function App() {
       fuelCost: '',
       otherExpenses: '',
       notes: '',
+    };
+    
+    const [form, setForm] = useState(() => {
+      if (editingLoad) {
+        // Merge editingLoad with defaults to ensure all fields exist
+        return {
+          ...defaultForm,
+          ...editingLoad,
+          // Ensure stops array exists and has proper structure
+          stops: editingLoad.stops?.length >= 2 ? editingLoad.stops : defaultForm.stops,
+        };
+      }
+      return defaultForm;
     });
+    
+    // Update form when editingLoad changes (for edit mode)
+    useEffect(() => {
+      if (editingLoad) {
+        setForm({
+          ...defaultForm,
+          ...editingLoad,
+          stops: editingLoad.stops?.length >= 2 ? editingLoad.stops : defaultForm.stops,
+        });
+      } else {
+        setForm(defaultForm);
+      }
+    }, [editingLoad?.id]);
 
     const handleStopChange = (index, field, value, locationData = null) => {
       const newStops = [...form.stops];
@@ -1549,7 +1575,7 @@ export default function App() {
                     <div>
                       <div style={{ color: colors.gray400, fontSize: 12, marginBottom: 6, textTransform: 'uppercase' }}>Rate/Loaded Mile</div>
                       <div style={{ color: colors.teal, fontSize: 24, fontWeight: 800 }}>
-                        {formatCurrency((parseFloat(form.rate) || 0) / (parseInt(form.loadedMiles) || 1))}<span style={{ fontSize: 14, fontWeight: 400 }}>/mi</span>
+                        {formatCentsPerMile((parseFloat(form.rate) || 0) / (parseInt(form.loadedMiles) || 1))}
                       </div>
                     </div>
                     <div>
@@ -1558,7 +1584,7 @@ export default function App() {
                       </div>
                       {parseInt(form.deadheadMiles) > 0 ? (
                         <div style={{ color: colors.orange, fontSize: 24, fontWeight: 800 }}>
-                          {formatCurrency((parseFloat(form.rate) || 0) / ((parseInt(form.loadedMiles) || 0) + (parseInt(form.deadheadMiles) || 0)))}<span style={{ fontSize: 14, fontWeight: 400 }}>/mi</span>
+                          {formatCentsPerMile((parseFloat(form.rate) || 0) / ((parseInt(form.loadedMiles) || 0) + (parseInt(form.deadheadMiles) || 0)))}
                         </div>
                       ) : (
                         <div style={{ color: colors.gray500, fontSize: 16, fontWeight: 600 }}>Add below ↓</div>
