@@ -72,7 +72,8 @@ export function getDB() {
   return dbInstance;
 }
 
-// Generic CRUD operations
+// ============ HELPER FUNCTIONS ============
+
 async function getAll(storeName) {
   return new Promise((resolve, reject) => {
     if (!dbInstance) { reject(new Error('Database not initialized')); return; }
@@ -111,7 +112,19 @@ async function saveAll(storeName, items) {
     if (!dbInstance) { reject(new Error('Database not initialized')); return; }
     const tx = dbInstance.transaction(storeName, 'readwrite');
     const store = tx.objectStore(storeName);
-    items.forEach(item => store.put(item));
+    (items || []).forEach(item => store.put(item));
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function replaceAll(storeName, items) {
+  return new Promise((resolve, reject) => {
+    if (!dbInstance) { reject(new Error('Database not initialized')); return; }
+    const tx = dbInstance.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    store.clear();
+    (items || []).forEach(item => store.put(item));
     tx.oncomplete = () => resolve(true);
     tx.onerror = () => reject(tx.error);
   });
@@ -129,18 +142,6 @@ async function deleteItem(storeName, id) {
 }
 
 async function clearStore(storeName) {
-
-async function replaceAll(storeName, items) {
-  return new Promise((resolve, reject) => {
-    if (!dbInstance) { reject(new Error('Database not initialized')); return; }
-    const tx = dbInstance.transaction(storeName, 'readwrite');
-    const store = tx.objectStore(storeName);
-    store.clear();
-    (items || []).forEach(item => store.put(item));
-    tx.oncomplete = () => resolve(true);
-    tx.onerror = () => reject(tx.error);
-  });
-}
   return new Promise((resolve, reject) => {
     if (!dbInstance) { reject(new Error('Database not initialized')); return; }
     const tx = dbInstance.transaction(storeName, 'readwrite');
@@ -151,76 +152,78 @@ async function replaceAll(storeName, items) {
   });
 }
 
+// ============ DATABASE EXPORTS ============
+
 // LOADS
 export const loadsDB = {
-  replaceAll: (loads) => replaceAll(STORES.LOADS, loads),
   getAll: () => getAll(STORES.LOADS),
   getById: (id) => getById(STORES.LOADS, id),
   save: (load) => saveItem(STORES.LOADS, load),
   saveAll: (loads) => saveAll(STORES.LOADS, loads),
+  replaceAll: (loads) => replaceAll(STORES.LOADS, loads),
   delete: (id) => deleteItem(STORES.LOADS, id),
   clear: () => clearStore(STORES.LOADS)
 };
 
 // FUEL
 export const fuelDB = {
-  replaceAll: (entries) => replaceAll(STORES.FUEL, entries),
   getAll: () => getAll(STORES.FUEL),
   getById: (id) => getById(STORES.FUEL, id),
   save: (entry) => saveItem(STORES.FUEL, entry),
   saveAll: (entries) => saveAll(STORES.FUEL, entries),
+  replaceAll: (entries) => replaceAll(STORES.FUEL, entries),
   delete: (id) => deleteItem(STORES.FUEL, id),
   clear: () => clearStore(STORES.FUEL)
 };
 
 // IFTA
 export const iftaDB = {
-  replaceAll: (data) => replaceAll(STORES.IFTA, data),
   getAll: () => getAll(STORES.IFTA),
+  getById: (id) => getById(STORES.IFTA, id),
   save: (entry) => saveItem(STORES.IFTA, entry),
-  saveAll: (entries) => saveAll(STORES.IFTA, entries),
+  replaceAll: (data) => replaceAll(STORES.IFTA, data),
   delete: (id) => deleteItem(STORES.IFTA, id),
   clear: () => clearStore(STORES.IFTA)
 };
 
 // EXPENSES
 export const expensesDB = {
-  replaceAll: (expenses) => replaceAll(STORES.EXPENSES, expenses),
   getAll: () => getAll(STORES.EXPENSES),
+  getById: (id) => getById(STORES.EXPENSES, id),
   save: (expense) => saveItem(STORES.EXPENSES, expense),
-  saveAll: (expenses) => saveAll(STORES.EXPENSES, expenses),
+  replaceAll: (expenses) => replaceAll(STORES.EXPENSES, expenses),
   delete: (id) => deleteItem(STORES.EXPENSES, id),
   clear: () => clearStore(STORES.EXPENSES)
 };
 
 // PER DIEM
 export const perdiemDB = {
-  replaceAll: (days) => replaceAll(STORES.PERDIEM, days),
   getAll: () => getAll(STORES.PERDIEM),
-  save: (entry) => saveItem(STORES.PERDIEM, entry),
-  saveAll: (entries) => saveAll(STORES.PERDIEM, entries),
+  getById: (id) => getById(STORES.PERDIEM, id),
+  save: (day) => saveItem(STORES.PERDIEM, day),
+  replaceAll: (days) => replaceAll(STORES.PERDIEM, days),
   delete: (id) => deleteItem(STORES.PERDIEM, id),
   clear: () => clearStore(STORES.PERDIEM)
 };
 
 // DRIVERS
 export const driversDB = {
-  replaceAll: (drivers) => replaceAll(STORES.DRIVERS, drivers),
   getAll: () => getAll(STORES.DRIVERS),
   getById: (id) => getById(STORES.DRIVERS, id),
   save: (driver) => saveItem(STORES.DRIVERS, { ...driver, updatedAt: new Date().toISOString() }),
   saveAll: (drivers) => saveAll(STORES.DRIVERS, drivers),
+  replaceAll: (drivers) => replaceAll(STORES.DRIVERS, drivers),
   delete: (id) => deleteItem(STORES.DRIVERS, id),
   clear: () => clearStore(STORES.DRIVERS)
 };
 
 // TRUCKS
 export const trucksDB = {
-  replaceAll: (trucks) => replaceAll(STORES.TRUCKS, trucks),
   getAll: () => getAll(STORES.TRUCKS),
   getById: (id) => getById(STORES.TRUCKS, id),
   save: (truck) => saveItem(STORES.TRUCKS, { ...truck, updatedAt: new Date().toISOString() }),
   saveAll: (trucks) => saveAll(STORES.TRUCKS, trucks),
+  replaceAll: (trucks) => replaceAll(STORES.TRUCKS, trucks),
   delete: (id) => deleteItem(STORES.TRUCKS, id),
   clear: () => clearStore(STORES.TRUCKS)
 };
@@ -230,6 +233,7 @@ export const payStatementsDB = {
   getAll: () => getAll(STORES.PAYSTATEMENTS),
   getById: (id) => getById(STORES.PAYSTATEMENTS, id),
   save: (statement) => saveItem(STORES.PAYSTATEMENTS, { ...statement, updatedAt: new Date().toISOString() }),
+  replaceAll: (statements) => replaceAll(STORES.PAYSTATEMENTS, statements),
   delete: (id) => deleteItem(STORES.PAYSTATEMENTS, id),
   clear: () => clearStore(STORES.PAYSTATEMENTS)
 };
@@ -240,68 +244,55 @@ export const settingsDB = {
     const result = await getById(STORES.SETTINGS, key);
     return result?.value;
   },
-  set: (key, value) => saveItem(STORES.SETTINGS, { key, value }),
-  getAll: () => getAll(STORES.SETTINGS),
+  set: async (key, value) => {
+    return saveItem(STORES.SETTINGS, { key, value });
+  },
+  delete: (key) => deleteItem(STORES.SETTINGS, key),
   clear: () => clearStore(STORES.SETTINGS)
 };
 
-// Export all data (for backup)
+// ============ BULK OPERATIONS ============
+
 export async function exportAllData() {
   return {
     version: DB_VERSION,
     exportedAt: new Date().toISOString(),
     loads: await loadsDB.getAll(),
-    fuel: await fuelDB.getAll(),
-    ifta: await iftaDB.getAll(),
+    fuelEntries: await fuelDB.getAll(),
+    iftaData: await iftaDB.getAll(),
     expenses: await expensesDB.getAll(),
-    perdiem: await perdiemDB.getAll(),
+    perDiemDays: await perdiemDB.getAll(),
     drivers: await driversDB.getAll(),
-    trucks: await trucksDB.getAll(),
-    settings: await settingsDB.getAll()
+    trucks: await trucksDB.getAll()
   };
 }
 
-// Import data (from backup)
 export async function importAllData(data) {
-  try {
-    if (data.loads) await saveAll(STORES.LOADS, data.loads);
-    if (data.fuel) await saveAll(STORES.FUEL, data.fuel);
-    if (data.ifta) await saveAll(STORES.IFTA, data.ifta);
-    if (data.expenses) await saveAll(STORES.EXPENSES, data.expenses);
-    if (data.perdiem) await saveAll(STORES.PERDIEM, data.perdiem);
-    if (data.drivers) await saveAll(STORES.DRIVERS, data.drivers);
-    if (data.trucks) await saveAll(STORES.TRUCKS, data.trucks);
-    if (data.settings) {
-      for (const setting of data.settings) {
-        await saveItem(STORES.SETTINGS, setting);
-      }
-    }
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
+  if (data.loads) await loadsDB.replaceAll(data.loads);
+  if (data.fuelEntries) await fuelDB.replaceAll(data.fuelEntries);
+  if (data.iftaData) await iftaDB.replaceAll(data.iftaData);
+  if (data.expenses) await expensesDB.replaceAll(data.expenses);
+  if (data.perDiemDays) await perdiemDB.replaceAll(data.perDiemDays);
+  if (data.drivers) await driversDB.replaceAll(data.drivers);
+  if (data.trucks) await trucksDB.replaceAll(data.trucks);
+  if (data.autoBackup !== undefined) await settingsDB.set('autoBackup', data.autoBackup);
+  if (data.lastBackup) await settingsDB.set('lastBackup', data.lastBackup);
+  if (data.notifications !== undefined) await settingsDB.set('notifications', data.notifications);
+  return true;
 }
 
-// Clear all data
 export async function clearAllData() {
-  try {
-    await Promise.all([
-      clearStore(STORES.LOADS),
-      clearStore(STORES.FUEL),
-      clearStore(STORES.IFTA),
-      clearStore(STORES.EXPENSES),
-      clearStore(STORES.PERDIEM),
-      clearStore(STORES.DRIVERS),
-      clearStore(STORES.TRUCKS),
-      clearStore(STORES.PAYSTATEMENTS),
-      clearStore(STORES.SETTINGS)
-    ]);
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
+  await loadsDB.clear();
+  await fuelDB.clear();
+  await iftaDB.clear();
+  await expensesDB.clear();
+  await perdiemDB.clear();
+  await driversDB.clear();
+  await trucksDB.clear();
+  await payStatementsDB.clear();
+  await settingsDB.clear();
+  return true;
 }
 
 // Default export for convenience
 export const db = dbInstance;
-export { STORES };
