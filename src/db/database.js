@@ -129,6 +129,18 @@ async function deleteItem(storeName, id) {
 }
 
 async function clearStore(storeName) {
+
+async function replaceAll(storeName, items) {
+  return new Promise((resolve, reject) => {
+    if (!dbInstance) { reject(new Error('Database not initialized')); return; }
+    const tx = dbInstance.transaction(storeName, 'readwrite');
+    const store = tx.objectStore(storeName);
+    store.clear();
+    (items || []).forEach(item => store.put(item));
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
   return new Promise((resolve, reject) => {
     if (!dbInstance) { reject(new Error('Database not initialized')); return; }
     const tx = dbInstance.transaction(storeName, 'readwrite');
@@ -141,6 +153,7 @@ async function clearStore(storeName) {
 
 // LOADS
 export const loadsDB = {
+  replaceAll: (loads) => replaceAll(STORES.LOADS, loads),
   getAll: () => getAll(STORES.LOADS),
   getById: (id) => getById(STORES.LOADS, id),
   save: (load) => saveItem(STORES.LOADS, load),
@@ -151,6 +164,7 @@ export const loadsDB = {
 
 // FUEL
 export const fuelDB = {
+  replaceAll: (entries) => replaceAll(STORES.FUEL, entries),
   getAll: () => getAll(STORES.FUEL),
   getById: (id) => getById(STORES.FUEL, id),
   save: (entry) => saveItem(STORES.FUEL, entry),
@@ -161,6 +175,7 @@ export const fuelDB = {
 
 // IFTA
 export const iftaDB = {
+  replaceAll: (data) => replaceAll(STORES.IFTA, data),
   getAll: () => getAll(STORES.IFTA),
   save: (entry) => saveItem(STORES.IFTA, entry),
   saveAll: (entries) => saveAll(STORES.IFTA, entries),
@@ -170,6 +185,7 @@ export const iftaDB = {
 
 // EXPENSES
 export const expensesDB = {
+  replaceAll: (expenses) => replaceAll(STORES.EXPENSES, expenses),
   getAll: () => getAll(STORES.EXPENSES),
   save: (expense) => saveItem(STORES.EXPENSES, expense),
   saveAll: (expenses) => saveAll(STORES.EXPENSES, expenses),
@@ -179,6 +195,7 @@ export const expensesDB = {
 
 // PER DIEM
 export const perdiemDB = {
+  replaceAll: (days) => replaceAll(STORES.PERDIEM, days),
   getAll: () => getAll(STORES.PERDIEM),
   save: (entry) => saveItem(STORES.PERDIEM, entry),
   saveAll: (entries) => saveAll(STORES.PERDIEM, entries),
@@ -188,6 +205,7 @@ export const perdiemDB = {
 
 // DRIVERS
 export const driversDB = {
+  replaceAll: (drivers) => replaceAll(STORES.DRIVERS, drivers),
   getAll: () => getAll(STORES.DRIVERS),
   getById: (id) => getById(STORES.DRIVERS, id),
   save: (driver) => saveItem(STORES.DRIVERS, { ...driver, updatedAt: new Date().toISOString() }),
@@ -198,6 +216,7 @@ export const driversDB = {
 
 // TRUCKS
 export const trucksDB = {
+  replaceAll: (trucks) => replaceAll(STORES.TRUCKS, trucks),
   getAll: () => getAll(STORES.TRUCKS),
   getById: (id) => getById(STORES.TRUCKS, id),
   save: (truck) => saveItem(STORES.TRUCKS, { ...truck, updatedAt: new Date().toISOString() }),
