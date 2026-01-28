@@ -7,6 +7,8 @@ import {
   expensesDB, 
   perdiemDB, 
   settingsDB,
+  driversDB,
+  trucksDB,
   exportAllData,
   importAllData,
   clearAllData
@@ -828,6 +830,17 @@ export default function App() {
         setLastBackupDate(data.lastBackup ?? null);
         setNotificationsEnabled(data.notifications ?? false);
         
+        // Load drivers and trucks directly (v2.0 feature)
+        try {
+          const loadedDrivers = await driversDB.getAll();
+          const loadedTrucks = await trucksDB.getAll();
+          setDrivers(loadedDrivers || []);
+          setTrucks(loadedTrucks || []);
+          console.log(`[BalanceBooks Trucking] Loaded ${loadedDrivers?.length || 0} drivers, ${loadedTrucks?.length || 0} trucks`);
+        } catch (e) {
+          console.log('[BalanceBooks Trucking] Drivers/Trucks stores not yet created, starting fresh');
+        }
+        
         console.log(`[BalanceBooks Trucking] Loaded ${data.loads?.length || 0} loads, ${data.fuelEntries?.length || 0} fuel entries from IndexedDB`);
         
         setTimeout(() => {
@@ -905,6 +918,21 @@ export default function App() {
     );
   }, [notificationsEnabled]);
 
+  // Persist drivers to IndexedDB (v2.0)
+  useEffect(() => {
+    if (!initialLoadComplete.current) return;
+    driversDB.replaceAll(drivers).catch(err => 
+      console.error('[IndexedDB] Failed to save drivers:', err)
+    );
+  }, [drivers]);
+
+  // Persist trucks to IndexedDB (v2.0)
+  useEffect(() => {
+    if (!initialLoadComplete.current) return;
+    trucksDB.replaceAll(trucks).catch(err => 
+      console.error('[IndexedDB] Failed to save trucks:', err)
+    );
+  }, [trucks]);
   // ============================================
   // AUTO-BACKUP & NOTIFICATIONS (NEW - matches Pro)
   // ============================================
