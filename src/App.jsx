@@ -1531,6 +1531,42 @@ export default function App() {
                   </span>
                 </div>
               )}
+              
+              {/* Rate Summary - Shows Flat Rate and Rate Per Mile */}
+              {form.rate > 0 && form.loadedMiles > 0 && (
+                <div style={{ 
+                  marginTop: 16, 
+                  padding: 20, 
+                  background: `${colors.green}15`, 
+                  borderRadius: 12,
+                  border: `1px solid ${colors.green}30`,
+                }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, textAlign: 'center' }}>
+                    <div>
+                      <div style={{ color: colors.gray400, fontSize: 12, marginBottom: 6, textTransform: 'uppercase' }}>Flat Rate</div>
+                      <div style={{ color: colors.green, fontSize: 24, fontWeight: 800 }}>{formatCurrency(parseFloat(form.rate) || 0)}</div>
+                    </div>
+                    <div>
+                      <div style={{ color: colors.gray400, fontSize: 12, marginBottom: 6, textTransform: 'uppercase' }}>Rate/Loaded Mile</div>
+                      <div style={{ color: colors.teal, fontSize: 24, fontWeight: 800 }}>
+                        {formatCurrency((parseFloat(form.rate) || 0) / (parseInt(form.loadedMiles) || 1))}<span style={{ fontSize: 14, fontWeight: 400 }}>/mi</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ color: colors.gray400, fontSize: 12, marginBottom: 6, textTransform: 'uppercase' }}>
+                        {parseInt(form.deadheadMiles) > 0 ? 'Rate/All Miles' : 'Deadhead'}
+                      </div>
+                      {parseInt(form.deadheadMiles) > 0 ? (
+                        <div style={{ color: colors.orange, fontSize: 24, fontWeight: 800 }}>
+                          {formatCurrency((parseFloat(form.rate) || 0) / ((parseInt(form.loadedMiles) || 0) + (parseInt(form.deadheadMiles) || 0)))}<span style={{ fontSize: 14, fontWeight: 400 }}>/mi</span>
+                        </div>
+                      ) : (
+                        <div style={{ color: colors.gray500, fontSize: 16, fontWeight: 600 }}>Add below ↓</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Deadhead Section */}
