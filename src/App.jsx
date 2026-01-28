@@ -1,7 +1,44 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { 
+  db, 
+  loadsDB, 
+  fuelDB, 
+  iftaDB, 
+  expensesDB, 
+  perdiemDB, 
+  settingsDB,
+  exportAllData,
+  importAllData,
+  clearAllData
+} from './db/database';
+import { migrateFromLocalStorage, loadFromIndexedDB, needsMigration } from './db/migration';
 
 // ============ CONSTANTS ============
-const APP_VERSION = '1.3.3';
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.4.0';
+
+// Cache version for force refresh (matches BalanceBooks Pro pattern)
+const CACHE_VERSION = '1.4.0';
+const forceRefreshOnNewVersion = () => {
+  const storedVersion = localStorage.getItem('bbt_app_version');
+  if (storedVersion && storedVersion !== CACHE_VERSION) {
+    console.log(`Version changed from ${storedVersion} to ${CACHE_VERSION}, clearing cache...`);
+    if ('caches' in window) {
+      caches.keys().then(names => names.forEach(name => caches.delete(name)));
+    }
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+    }
+    localStorage.setItem('bbt_app_version', CACHE_VERSION);
+    window.location.reload(true);
+    return true;
+  }
+  localStorage.setItem('bbt_app_version', CACHE_VERSION);
+  return false;
+};
+
+if (typeof window !== 'undefined') {
+  forceRefreshOnNewVersion();
+}
 
 const colors = {
   navy: '#1e3a5f',
@@ -207,31 +244,7 @@ const calculateRouteDistance = (stops) => {
   return total;
 };
 
-// Enhanced localStorage with error handling
-const saveData = (key, data) => { 
-  try { 
-    localStorage.setItem('bbt_' + key, JSON.stringify(data)); 
-    return true;
-  } catch (e) {
-    console.error('Failed to save data:', key, e);
-    return false;
-  }
-};
-
-const loadData = (key, defaultValue) => { 
-  try { 
-    const saved = localStorage.getItem('bbt_' + key); 
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      console.log(`Loaded ${key}:`, parsed.length || 'object');
-      return parsed;
-    }
-    return defaultValue; 
-  } catch (e) {
-    console.error('Failed to load data:', key, e);
-    return defaultValue; 
-  }
-};
+// NOTE: localStorage functions removed - now using IndexedDB via ./db/database.js
 
 // ============ STYLES ============
 const styles = {
@@ -626,6 +639,11 @@ const LocationAutocomplete = ({ value, onChange, placeholder, onSelect }) => {
 
 // ============ MAIN APP ============
 export default function App() {
+  // ============ LOADING STATE (NEW - matches Pro) ============
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  
+  // ============ UI STATE ============
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
@@ -637,33 +655,186 @@ export default function App() {
   const [editingFuel, setEditingFuel] = useState(null);
   const [editingIFTA, setEditingIFTA] = useState(null);
   const [editingExpense, setEditingExpense] = useState(null);
-  const [dataLoaded, setDataLoaded] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [showFuelImport, setShowFuelImport] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
 
-  // ============ DATA STATE ============
-  const [fuelEntries, setFuelEntries] = useState(() => loadData('fuel', []));
-  const [loads, setLoads] = useState(() => loadData('loads', []));
-  const [iftaData, setIftaData] = useState(() => loadData('ifta', []));
-  const [expenses, setExpenses] = useState(() => loadData('expenses', []));
-  const [perDiemDays, setPerDiemDays] = useState(() => loadData('perdiem', []));
+  // ============ DATA STATE - Now loaded from IndexedDB ============
+  const [fuelEntries, setFuelEntries] = useState([]);
+  const [loads, setLoads] = useState([]);
+  const [iftaData, setIftaData] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [perDiemDays, setPerDiemDays] = useState([]);
 
-  // Mark data as loaded on mount
+  // ============ SETTINGS STATE (NEW - matches Pro) ============
+  const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
+  const [lastBackupDate, setLastBackupDate] = useState(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+
+  // Ref to track if initial load is complete
+  const initialLoadComplete = useRef(false);
+
+  // ============================================
+  // INDEXEDDB INITIALIZATION (NEW - matches Pro)
+  // ============================================
+  
   useEffect(() => {
-    setDataLoaded(true);
-    console.log('BalanceBooks Trucking v' + APP_VERSION + ' loaded');
-    console.log('Loads:', loads.length, 'Fuel:', fuelEntries.length, 'Expenses:', expenses.length);
+    const initializeApp = async () => {
+      try {
+        console.log(`[BalanceBooks Trucking] Initializing v${APP_VERSION}...`);
+        
+        // Check if migration from localStorage is needed
+        if (needsMigration()) {
+          console.log('[BalanceBooks Trucking] Migrating from localStorage...');
+          const result = await migrateFromLocalStorage();
+          if (!result.success && !result.skipped) {
+            console.error('[BalanceBooks Trucking] Migration failed:', result.error);
+          }
+        }
+        
+        // Load all data from IndexedDB
+        const data = await loadFromIndexedDB();
+        
+        // Set state with loaded data
+        setLoads(data.loads || []);
+        setFuelEntries(data.fuelEntries || []);
+        setIftaData(data.iftaData || []);
+        setExpenses(data.expenses || []);
+        setPerDiemDays(data.perDiemDays || []);
+        setAutoBackupEnabled(data.autoBackup ?? false);
+        setLastBackupDate(data.lastBackup ?? null);
+        setNotificationsEnabled(data.notifications ?? false);
+        
+        console.log(`[BalanceBooks Trucking] Loaded ${data.loads?.length || 0} loads, ${data.fuelEntries?.length || 0} fuel entries from IndexedDB`);
+        
+        setTimeout(() => {
+          initialLoadComplete.current = true;
+        }, 100);
+        
+        setIsLoading(false);
+      } catch (error) {
+        console.error('[BalanceBooks Trucking] Initialization error:', error);
+        setLoadError(error.message);
+        setIsLoading(false);
+      }
+    };
     
-    // Check if already installed as PWA
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      setIsInstalled(true);
+    initializeApp();
+  }, []);
+
+  // ============================================
+  // INDEXEDDB SAVE OPERATIONS (NEW - matches Pro)
+  // ============================================
+  
+  useEffect(() => {
+    if (!initialLoadComplete.current) return;
+    loadsDB.replaceAll(loads).catch(err => 
+      console.error('[IndexedDB] Failed to save loads:', err)
+    );
+  }, [loads]);
+  
+  useEffect(() => {
+    if (!initialLoadComplete.current) return;
+    fuelDB.replaceAll(fuelEntries).catch(err => 
+      console.error('[IndexedDB] Failed to save fuel:', err)
+    );
+  }, [fuelEntries]);
+  
+  useEffect(() => {
+    if (!initialLoadComplete.current) return;
+    iftaDB.replaceAll(iftaData).catch(err => 
+      console.error('[IndexedDB] Failed to save IFTA:', err)
+    );
+  }, [iftaData]);
+  
+  useEffect(() => {
+    if (!initialLoadComplete.current) return;
+    expensesDB.replaceAll(expenses).catch(err => 
+      console.error('[IndexedDB] Failed to save expenses:', err)
+    );
+  }, [expenses]);
+  
+  useEffect(() => {
+    if (!initialLoadComplete.current) return;
+    perdiemDB.replaceAll(perDiemDays).catch(err => 
+      console.error('[IndexedDB] Failed to save per diem:', err)
+    );
+  }, [perDiemDays]);
+  
+  useEffect(() => {
+    if (!initialLoadComplete.current) return;
+    settingsDB.set('autoBackup', autoBackupEnabled).catch(err => 
+      console.error('[IndexedDB] Failed to save autoBackup:', err)
+    );
+  }, [autoBackupEnabled]);
+  
+  useEffect(() => {
+    if (!initialLoadComplete.current) return;
+    settingsDB.set('lastBackup', lastBackupDate).catch(err => 
+      console.error('[IndexedDB] Failed to save lastBackup:', err)
+    );
+  }, [lastBackupDate]);
+  
+  useEffect(() => {
+    if (!initialLoadComplete.current) return;
+    settingsDB.set('notifications', notificationsEnabled).catch(err => 
+      console.error('[IndexedDB] Failed to save notifications:', err)
+    );
+  }, [notificationsEnabled]);
+
+  // ============================================
+  // AUTO-BACKUP & NOTIFICATIONS (NEW - matches Pro)
+  // ============================================
+
+  useEffect(() => {
+    if (autoBackupEnabled && initialLoadComplete.current) {
+      const checkBackup = () => {
+        const last = lastBackupDate ? new Date(lastBackupDate) : null;
+        const now = new Date();
+        if (!last || (now - last) > 24 * 60 * 60 * 1000) {
+          performAutoBackup();
+        }
+      };
+      checkBackup();
+      const interval = setInterval(checkBackup, 60 * 60 * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [autoBackupEnabled, lastBackupDate]);
+
+  useEffect(() => {
+    if (notificationsEnabled && 'Notification' in window) {
+      Notification.requestPermission();
+    }
+  }, [notificationsEnabled]);
+
+  const performAutoBackup = useCallback(async () => {
+    try {
+      const data = await exportAllData();
+      const backup = {
+        version: APP_VERSION,
+        exportDate: new Date().toISOString(),
+        autoBackup: true,
+        storage: 'IndexedDB',
+        data
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `balancebooks-trucking-auto-backup-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      setLastBackupDate(new Date().toISOString());
+    } catch (err) {
+      console.error('[AutoBackup] Failed:', err);
     }
   }, []);
 
   // PWA Install Prompt Handler
   useEffect(() => {
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsInstalled(true);
+    }
+    
     const handleInstallPrompt = (e) => {
       e.preventDefault();
       setInstallPrompt(e);
@@ -685,25 +856,15 @@ export default function App() {
     };
   }, []);
 
-  // Handle PWA Install
   const handleInstallClick = async () => {
     if (!installPrompt) return;
-    
     installPrompt.prompt();
     const { outcome } = await installPrompt.userChoice;
-    
     if (outcome === 'accepted') {
       setIsInstalled(true);
     }
     setInstallPrompt(null);
   };
-
-  // Persist data to localStorage
-  useEffect(() => { if (dataLoaded) saveData('fuel', fuelEntries); }, [fuelEntries, dataLoaded]);
-  useEffect(() => { if (dataLoaded) saveData('loads', loads); }, [loads, dataLoaded]);
-  useEffect(() => { if (dataLoaded) saveData('ifta', iftaData); }, [iftaData, dataLoaded]);
-  useEffect(() => { if (dataLoaded) saveData('expenses', expenses); }, [expenses, dataLoaded]);
-  useEffect(() => { if (dataLoaded) saveData('perdiem', perDiemDays); }, [perDiemDays, dataLoaded]);
 
   // ============ CALCULATIONS ============
   const stats = useMemo(() => {
@@ -2574,7 +2735,7 @@ export default function App() {
     );
   };
 
-  // ============ SETTINGS VIEW ============
+  // ============ SETTINGS VIEW (UPDATED FOR INDEXEDDB) ============
   const renderSettings = () => (
     <>
       <div style={styles.header}>
@@ -2601,15 +2762,25 @@ export default function App() {
               <div style={{ color: colors.gray400, fontSize: 14 }}>Download your data as JSON backup</div>
             </div>
             <button 
-              onClick={() => {
-                const data = { fuelEntries, loads, iftaData, expenses, perDiemDays, exportDate: new Date().toISOString(), version: APP_VERSION };
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `balancebooks-trucking-backup-${new Date().toISOString().split('T')[0]}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
+              onClick={async () => {
+                try {
+                  const data = await exportAllData();
+                  const backup = {
+                    version: APP_VERSION,
+                    exportDate: new Date().toISOString(),
+                    storage: 'IndexedDB',
+                    data
+                  };
+                  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `balancebooks-trucking-backup-${new Date().toISOString().split('T')[0]}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch (err) {
+                  alert('❌ Export failed: ' + err.message);
+                }
               }}
               style={styles.btn('primary')}
             >
@@ -2635,19 +2806,27 @@ export default function App() {
                 type="file"
                 accept=".json"
                 style={{ display: 'none' }}
-                onChange={(e) => {
+                onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (file) {
                     const reader = new FileReader();
-                    reader.onload = (ev) => {
+                    reader.onload = async (ev) => {
                       try {
-                        const data = JSON.parse(ev.target?.result);
-                        if (data.loads) setLoads(data.loads);
-                        if (data.fuelEntries) setFuelEntries(data.fuelEntries);
-                        if (data.iftaData) setIftaData(data.iftaData);
-                        if (data.expenses) setExpenses(data.expenses);
-                        if (data.perDiemDays) setPerDiemDays(data.perDiemDays);
-                        alert('✅ Data imported successfully!');
+                        const imported = JSON.parse(ev.target?.result);
+                        const data = imported.data || imported;
+                        
+                        const result = await importAllData(data);
+                        if (result.success) {
+                          const freshData = await loadFromIndexedDB();
+                          setLoads(freshData.loads || []);
+                          setFuelEntries(freshData.fuelEntries || []);
+                          setIftaData(freshData.iftaData || []);
+                          setExpenses(freshData.expenses || []);
+                          setPerDiemDays(freshData.perDiemDays || []);
+                          alert('✅ Data imported successfully!');
+                        } else {
+                          alert('❌ Import failed: ' + result.error);
+                        }
                       } catch (err) {
                         alert('❌ Failed to import: Invalid file format');
                       }
@@ -2673,21 +2852,162 @@ export default function App() {
               <div style={{ color: colors.gray400, fontSize: 14 }}>Permanently delete all your data</div>
             </div>
             <button 
-              onClick={() => {
+              onClick={async () => {
                 if (confirm('Are you sure? This will permanently delete ALL your data!')) {
-                  setLoads([]);
-                  setFuelEntries([]);
-                  setIftaData([]);
-                  setExpenses([]);
-                  setPerDiemDays([]);
-                  localStorage.clear();
-                  alert('All data has been cleared.');
+                  const result = await clearAllData();
+                  if (result.success) {
+                    setLoads([]);
+                    setFuelEntries([]);
+                    setIftaData([]);
+                    setExpenses([]);
+                    setPerDiemDays([]);
+                    alert('All data has been cleared.');
+                  } else {
+                    alert('❌ Failed to clear data: ' + result.error);
+                  }
                 }
               }}
               style={styles.btn('danger')}
             >
               🗑️ Clear All
             </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* NEW: Auto-Backup & Notifications Card (matches Pro) */}
+      <div style={styles.card}>
+        <div style={styles.cardTitle}>
+          <span>⚙️ Preferences</span>
+        </div>
+        
+        <div style={{ display: 'grid', gap: 20 }}>
+          <div style={{ 
+            background: colors.navyDark, 
+            padding: 24, 
+            borderRadius: 16,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <div>
+              <div style={{ color: colors.white, fontWeight: 700, marginBottom: 4 }}>
+                🔄 Auto-Backup (Daily)
+              </div>
+              <div style={{ color: colors.gray400, fontSize: 14 }}>
+                Automatically download a backup once per day
+                {lastBackupDate && (
+                  <span style={{ marginLeft: 8, color: colors.teal }}>
+                    • Last: {new Date(lastBackupDate).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+            </div>
+            <label style={{ 
+              position: 'relative', 
+              display: 'inline-block', 
+              width: 56, 
+              height: 28,
+              cursor: 'pointer'
+            }}>
+              <input
+                type="checkbox"
+                checked={autoBackupEnabled}
+                onChange={(e) => setAutoBackupEnabled(e.target.checked)}
+                style={{ opacity: 0, width: 0, height: 0 }}
+              />
+              <span style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: autoBackupEnabled ? colors.green : colors.gray600,
+                borderRadius: 28,
+                transition: '0.3s',
+              }}>
+                <span style={{
+                  position: 'absolute',
+                  left: autoBackupEnabled ? 30 : 4,
+                  bottom: 4,
+                  width: 20,
+                  height: 20,
+                  background: colors.white,
+                  borderRadius: '50%',
+                  transition: '0.3s',
+                }} />
+              </span>
+            </label>
+          </div>
+
+          <div style={{ 
+            background: colors.navyDark, 
+            padding: 24, 
+            borderRadius: 16,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <div>
+              <div style={{ color: colors.white, fontWeight: 700, marginBottom: 4 }}>
+                🔔 Notifications
+              </div>
+              <div style={{ color: colors.gray400, fontSize: 14 }}>
+                Get reminders for important events
+              </div>
+            </div>
+            <label style={{ 
+              position: 'relative', 
+              display: 'inline-block', 
+              width: 56, 
+              height: 28,
+              cursor: 'pointer'
+            }}>
+              <input
+                type="checkbox"
+                checked={notificationsEnabled}
+                onChange={(e) => setNotificationsEnabled(e.target.checked)}
+                style={{ opacity: 0, width: 0, height: 0 }}
+              />
+              <span style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: notificationsEnabled ? colors.green : colors.gray600,
+                borderRadius: 28,
+                transition: '0.3s',
+              }}>
+                <span style={{
+                  position: 'absolute',
+                  left: notificationsEnabled ? 30 : 4,
+                  bottom: 4,
+                  width: 20,
+                  height: 20,
+                  background: colors.white,
+                  borderRadius: '50%',
+                  transition: '0.3s',
+                }} />
+              </span>
+            </label>
+          </div>
+
+          <div style={{ 
+            background: `${colors.teal}20`, 
+            border: `1px solid ${colors.teal}40`,
+            padding: 24, 
+            borderRadius: 16,
+          }}>
+            <div style={{ color: colors.teal, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>💾</span> Storage: IndexedDB
+            </div>
+            <div style={{ color: colors.gray300, fontSize: 14, lineHeight: 1.6 }}>
+              <p>Your data is stored locally using IndexedDB - a robust browser database that handles larger datasets than localStorage.</p>
+              <p style={{ marginTop: 8, color: colors.gray500 }}>
+                Data stored: {loads.length} loads, {fuelEntries.length} fuel entries, {expenses.length} expenses, {perDiemDays.length} per diem days
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -2783,7 +3103,7 @@ export default function App() {
         </div>
         <div style={{ color: colors.gray400 }}>
           <p><strong style={{ color: colors.white }}>BalanceBooks Trucking</strong></p>
-          <p>Version {APP_VERSION}</p>
+          <p>Version {APP_VERSION} (IndexedDB)</p>
           <p style={{ marginTop: 16 }}>Privacy-first financial tracking for owner-operators.</p>
           <p>100% offline • Your data stays on your device</p>
           <p style={{ marginTop: 16, fontSize: 13 }}>
@@ -2793,6 +3113,62 @@ export default function App() {
       </div>
     </>
   );
+
+
+  // ============================================
+  // LOADING SCREEN (NEW - matches Pro)
+  // ============================================
+  
+  if (isLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: `linear-gradient(135deg, ${colors.gray900} 0%, ${colors.navyDark} 100%)`,
+        color: colors.white
+      }}>
+        <BalanceBooksLogo size={80} />
+        <div style={{ marginTop: 24, fontSize: 24, fontWeight: 700 }}>BalanceBooks Trucking</div>
+        <div style={{ marginTop: 8, fontSize: 14, color: colors.orange }}>v{APP_VERSION}</div>
+        <div style={{ marginTop: 16, color: colors.gray400 }}>Loading your data...</div>
+        <div style={{
+          marginTop: 24,
+          width: 48,
+          height: 48,
+          border: `4px solid ${colors.gray700}`,
+          borderTopColor: colors.orange,
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <style>{\`@keyframes spin { to { transform: rotate(360deg); } }\`}</style>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        background: `linear-gradient(135deg, ${colors.gray900} 0%, ${colors.navyDark} 100%)`,
+        color: colors.white,
+        padding: 40
+      }}>
+        <div style={{ fontSize: 64, marginBottom: 24 }}>⚠️</div>
+        <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 16 }}>Failed to Load Data</div>
+        <div style={{ color: colors.gray400, marginBottom: 24, textAlign: 'center' }}>{loadError}</div>
+        <button onClick={() => window.location.reload()} style={styles.btn('primary')}>
+          🔄 Retry
+        </button>
+      </div>
+    );
+  }
 
   // ============ MAIN RENDER ============
   return (
