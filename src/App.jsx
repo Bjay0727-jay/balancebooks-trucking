@@ -830,18 +830,11 @@ export default function App() {
         setLastBackupDate(data.lastBackup ?? null);
         setNotificationsEnabled(data.notifications ?? false);
         
-        // Load drivers and trucks directly (v2.0 feature)
-        try {
-          const loadedDrivers = await driversDB.getAll();
-          const loadedTrucks = await trucksDB.getAll();
-          setDrivers(loadedDrivers || []);
-          setTrucks(loadedTrucks || []);
-          console.log(`[BalanceBooks Trucking] Loaded ${loadedDrivers?.length || 0} drivers, ${loadedTrucks?.length || 0} trucks`);
-        } catch (e) {
-          console.log('[BalanceBooks Trucking] Drivers/Trucks stores not yet created, starting fresh');
-        }
+        // Load drivers and trucks (v2.0 feature) - now included in loadFromIndexedDB
+        setDrivers(data.drivers || []);
+        setTrucks(data.trucks || []);
         
-        console.log(`[BalanceBooks Trucking] Loaded ${data.loads?.length || 0} loads, ${data.fuelEntries?.length || 0} fuel entries from IndexedDB`);
+        console.log(`[BalanceBooks Trucking] Loaded ${data.loads?.length || 0} loads, ${data.fuelEntries?.length || 0} fuel entries, ${data.drivers?.length || 0} drivers, ${data.trucks?.length || 0} trucks`);
         
         setTimeout(() => {
           initialLoadComplete.current = true;
