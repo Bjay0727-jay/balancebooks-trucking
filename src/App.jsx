@@ -876,6 +876,7 @@ export default function App() {
   };
   // ============================================
   // TOOLS IMPORT DETECTION (bb-trucking-tools integration)
+  // Uses URL hash for cross-domain data transfer
   // ============================================
   
   useEffect(() => {
@@ -885,21 +886,46 @@ export default function App() {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('import') !== 'tools') return;
 
+      console.log('[Tools Import] Import flag detected, checking for data...');
+
       try {
-        const stored = localStorage.getItem(BB_TOOLS_STORAGE_KEY);
-        if (!stored) {
-          setToolsImportError('No import data found. Please try again from the tools page.');
-          // Clean URL
+        let data = null;
+        
+        // Method 1: Check URL hash for encoded data (cross-domain safe)
+        const hash = window.location.hash;
+        if (hash && hash.includes('data=')) {
+          const encoded = hash.split('data=')[1];
+          if (encoded) {
+            try {
+              const jsonStr = decodeURIComponent(escape(atob(encoded)));
+              data = JSON.parse(jsonStr);
+              console.log('[Tools Import] Data loaded from URL hash');
+            } catch (decodeErr) {
+              console.error('[Tools Import] Failed to decode URL data:', decodeErr);
+            }
+          }
+        }
+        
+        // Method 2: Fallback to localStorage (same-domain only)
+        if (!data) {
+          const stored = localStorage.getItem(BB_TOOLS_STORAGE_KEY);
+          if (stored) {
+            data = JSON.parse(stored);
+            console.log('[Tools Import] Data loaded from localStorage');
+          }
+        }
+        
+        if (!data) {
+          setToolsImportError('No import data found. The data may have been too large. Try downloading CSV and importing manually.');
           window.history.replaceState({}, '', window.location.pathname);
           return;
         }
-
-        const data = JSON.parse(stored);
         
         // Validate source
         const validSources = ['fuel-converter', 'ifta-calculator', 'load-calculator', 'cost-per-mile', 'per-diem', 'deadhead-calculator'];
         if (!validSources.includes(data.source)) {
           setToolsImportError('Invalid import source: ' + data.source);
+          window.history.replaceState({}, '', window.location.pathname);
           return;
         }
 
@@ -915,17 +941,18 @@ export default function App() {
         }
 
         // Valid import - show confirmation modal
-        console.log('[Tools Import] Detected import from:', data.source);
+        console.log('[Tools Import] Valid data from:', data.source, '- Showing modal');
         setToolsImportData(data);
         setShowToolsImport(true);
         setToolsImportError(null);
 
-        // Clean URL
+        // Clean URL (remove query params and hash)
         window.history.replaceState({}, '', window.location.pathname);
 
       } catch (e) {
         console.error('[Tools Import] Error:', e);
         setToolsImportError('Failed to read import data: ' + e.message);
+        window.history.replaceState({}, '', window.location.pathname);
       }
     };
 
@@ -3423,7 +3450,7 @@ export default function App() {
           borderRadius: '50%',
           animation: 'spin 1s linear infinite'
         }} />
-        <style>{\`@keyframes spin { to { transform: rotate(360deg); } }\`}</style>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
