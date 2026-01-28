@@ -14,10 +14,10 @@ import {
 import { migrateFromLocalStorage, loadFromIndexedDB, needsMigration } from './db/migration';
 
 // ============ CONSTANTS ============
-const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.4.0';
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.5.0';
 
 // Cache version for force refresh (matches BalanceBooks Pro pattern)
-const CACHE_VERSION = '1.4.0';
+const CACHE_VERSION = '1.5.0';
 const forceRefreshOnNewVersion = () => {
   const storedVersion = localStorage.getItem('bbt_app_version');
   if (storedVersion && storedVersion !== CACHE_VERSION) {
@@ -39,6 +39,9 @@ const forceRefreshOnNewVersion = () => {
 if (typeof window !== 'undefined') {
   forceRefreshOnNewVersion();
 }
+// Tools integration storage key
+const BB_TOOLS_STORAGE_KEY = 'bb_tools_export';
+
 
 const colors = {
   navy: '#1e3a5f',
@@ -675,6 +678,12 @@ export default function App() {
   // Ref to track if initial load is complete
   const initialLoadComplete = useRef(false);
 
+  // ============ TOOLS IMPORT STATE (for bb-trucking-tools integration) ============
+  const [showToolsImport, setShowToolsImport] = useState(false);
+  const [toolsImportData, setToolsImportData] = useState(null);
+  const [toolsImportError, setToolsImportError] = useState(null);
+
+
   // ============================================
   // INDEXEDDB INITIALIZATION (NEW - matches Pro)
   // ============================================
@@ -865,6 +874,166 @@ export default function App() {
     }
     setInstallPrompt(null);
   };
+  // ============================================
+  // TOOLS IMPORT DETECTION (bb-trucking-tools integration)
+  // ============================================
+  
+  useEffect(() => {
+    if (isLoading) return; // Wait for app to load first
+    
+    const checkForToolsImport = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('import') !== 'tools') return;
+
+      try {
+        const stored = localStorage.getItem(BB_TOOLS_STORAGE_KEY);
+        if (!stored) {
+          setToolsImportError('No import data found. Please try again from the tools page.');
+          // Clean URL
+          window.history.replaceState({}, '', window.location.pathname);
+          return;
+        }
+
+        const data = JSON.parse(stored);
+        
+        // Validate source
+        const validSources = ['fuel-converter', 'ifta-calculator', 'load-calculator', 'cost-per-mile', 'per-diem', 'deadhead-calculator'];
+        if (!validSources.includes(data.source)) {
+          setToolsImportError('Invalid import source: ' + data.source);
+          return;
+        }
+
+        // Check timestamp (reject if older than 1 hour)
+        if (data.timestamp) {
+          const importTime = new Date(data.timestamp);
+          if (new Date() - importTime > 60 * 60 * 1000) {
+            setToolsImportError('Import data expired. Please export again from tools.');
+            localStorage.removeItem(BB_TOOLS_STORAGE_KEY);
+            window.history.replaceState({}, '', window.location.pathname);
+            return;
+          }
+        }
+
+        // Valid import - show confirmation modal
+        console.log('[Tools Import] Detected import from:', data.source);
+        setToolsImportData(data);
+        setShowToolsImport(true);
+        setToolsImportError(null);
+
+        // Clean URL
+        window.history.replaceState({}, '', window.location.pathname);
+
+      } catch (e) {
+        console.error('[Tools Import] Error:', e);
+        setToolsImportError('Failed to read import data: ' + e.message);
+      }
+    };
+
+    checkForToolsImport();
+  }, [isLoading]);
+
+  // Handle confirmed import from tools
+  const handleToolsImport = useCallback(async () => {
+    if (!toolsImportData) return;
+
+    try {
+      switch (toolsImportData.source) {
+        case 'fuel-converter':
+          // Convert tools format to app format
+          const newFuelEntries = toolsImportData.data.map(row => ({
+            id: uid(),
+            date: row.date || new Date().toISOString().split('T')[0],
+            location: row.location || row.truckStop || '',
+            state: row.state || '',
+            gallons: row.gallons || 0,
+            pricePerGallon: row.pricePerGallon || 0,
+            odometer: parseInt(row.odometer) || 0
+          }));
+          
+          setFuelEntries(prev => [...prev, ...newFuelEntries]);
+          setActiveTab('fuel');
+          console.log('[Tools Import] Added ' + newFuelEntries.length + ' fuel entries');
+          break;
+
+        case 'ifta-calculator':
+          if (toolsImportData.states && Array.isArray(toolsImportData.states)) {
+            const newIftaEntries = toolsImportData.states.map(state => ({
+              id: uid(),
+              quarter: (toolsImportData.year || new Date().getFullYear()) + '-' + (toolsImportData.quarter || 'Q1'),
+              state: state.state || state.abbr,
+              miles: state.miles || 0,
+              gallons: state.gallons || 0,
+              taxRate: state.taxRate || IFTA_RATES[state.state] || 0
+            }));
+            
+            setIftaData(prev => [...prev, ...newIftaEntries]);
+            setActiveTab('ifta');
+            console.log('[Tools Import] Added ' + newIftaEntries.length + ' IFTA entries');
+          }
+          break;
+
+        case 'load-calculator':
+          if (toolsImportData.load) {
+            const newLoad = {
+              id: uid(),
+              date: new Date().toISOString().split('T')[0],
+              loadNumber: 'CALC-' + Date.now().toString(36).toUpperCase(),
+              rate: toolsImportData.load.lineHaul || 0,
+              loadedMiles: toolsImportData.load.loadedMiles || 0,
+              deadheadMiles: toolsImportData.load.deadheadMiles || 0,
+              fuelCost: toolsImportData.load.fuelCost || 0,
+              otherExpenses: toolsImportData.load.dispatchFee || 0,
+              stops: [
+                { location: 'Origin (from calculator)', type: 'pickup' },
+                { location: 'Destination (from calculator)', type: 'delivery' }
+              ],
+              notes: 'Imported from Load Calculator. Verdict: ' + (toolsImportData.load.verdict || 'N/A')
+            };
+            
+            setLoads(prev => [...prev, newLoad]);
+            setActiveTab('loads');
+          }
+          break;
+
+        case 'per-diem':
+          if (toolsImportData.days) {
+            const newPerDiem = {
+              id: uid(),
+              startDate: toolsImportData.startDate || new Date().toISOString().split('T')[0],
+              endDate: toolsImportData.endDate || new Date().toISOString().split('T')[0],
+              days: toolsImportData.days,
+              rate: toolsImportData.rate || 80,
+              total: toolsImportData.days * (toolsImportData.rate || 80)
+            };
+            
+            setPerDiemDays(prev => [...prev, newPerDiem]);
+            setActiveTab('perdiem');
+          }
+          break;
+
+        default:
+          console.warn('[Tools Import] Unknown source:', toolsImportData.source);
+      }
+
+      // Clear and close
+      localStorage.removeItem(BB_TOOLS_STORAGE_KEY);
+      setShowToolsImport(false);
+      setToolsImportData(null);
+
+    } catch (e) {
+      console.error('[Tools Import] Failed:', e);
+      setToolsImportError('Import failed: ' + e.message);
+    }
+  }, [toolsImportData]);
+
+  // Cancel tools import
+  const cancelToolsImport = useCallback(() => {
+    localStorage.removeItem(BB_TOOLS_STORAGE_KEY);
+    setShowToolsImport(false);
+    setToolsImportData(null);
+    setToolsImportError(null);
+  }, []);
+
 
   // ============ CALCULATIONS ============
   const stats = useMemo(() => {
@@ -3115,6 +3284,117 @@ export default function App() {
   );
 
 
+
+  // ============================================
+  // TOOLS IMPORT MODAL (bb-trucking-tools integration)
+  // ============================================
+  
+  const ToolsImportModal = () => {
+    if (!showToolsImport || !toolsImportData) return null;
+
+    const getImportSummary = () => {
+      switch (toolsImportData.source) {
+        case 'fuel-converter':
+          return {
+            icon: '⛽',
+            title: 'Import Fuel Transactions',
+            details: [
+              (toolsImportData.rowCount || toolsImportData.data?.length || 0) + ' transactions',
+              'Provider: ' + (toolsImportData.provider || 'Unknown'),
+              'Total: ' + (toolsImportData.summary?.gallons || 0).toFixed(1) + ' gallons',
+              'Amount: $' + (toolsImportData.summary?.amount || 0).toFixed(2)
+            ]
+          };
+        case 'ifta-calculator':
+          return {
+            icon: '📋',
+            title: 'Import IFTA Data',
+            details: [
+              (toolsImportData.quarter || 'Q?') + ' ' + (toolsImportData.year || ''),
+              (toolsImportData.states?.length || 0) + ' states',
+              (toolsImportData.summary?.totalMiles || 0).toLocaleString() + ' total miles'
+            ]
+          };
+        case 'load-calculator':
+          return {
+            icon: '🚛',
+            title: 'Import Load',
+            details: [
+              'Rate: $' + (toolsImportData.load?.lineHaul || 0).toLocaleString(),
+              (toolsImportData.load?.loadedMiles || 0) + ' loaded miles',
+              'Verdict: ' + (toolsImportData.load?.verdict || 'N/A')
+            ]
+          };
+        case 'per-diem':
+          return {
+            icon: '📅',
+            title: 'Import Per Diem',
+            details: [
+              (toolsImportData.days || 0) + ' days',
+              '$' + (toolsImportData.rate || 80) + '/day',
+              'Total: $' + ((toolsImportData.days || 0) * (toolsImportData.rate || 80)).toFixed(2)
+            ]
+          };
+        default:
+          return { icon: '📥', title: 'Import Data', details: ['Data from BalanceBooks Tools'] };
+      }
+    };
+
+    const summary = getImportSummary();
+
+    return (
+      <div style={styles.modal} onClick={cancelToolsImport}>
+        <div style={{ ...styles.modalContent, maxWidth: 480 }} onClick={e => e.stopPropagation()}>
+          <div style={{ textAlign: 'center', marginBottom: 32 }}>
+            <div style={{ fontSize: 64, marginBottom: 16 }}>{summary.icon}</div>
+            <h2 style={{ color: colors.white, fontSize: 28, marginBottom: 8 }}>{summary.title}</h2>
+            <p style={{ color: colors.gray400 }}>From BalanceBooks Tools</p>
+          </div>
+
+          <div style={{ background: colors.navyDark, borderRadius: 16, padding: 24, marginBottom: 32 }}>
+            {summary.details.map((detail, i) => (
+              <div key={i} style={{ 
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '12px 0',
+                borderBottom: i < summary.details.length - 1 ? '1px solid ' + colors.gray700 : 'none'
+              }}>
+                <span style={{ color: colors.orange }}>•</span>
+                <span style={{ color: colors.gray200 }}>{detail}</span>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 16 }}>
+            <button onClick={cancelToolsImport} style={{ ...styles.btn('secondary'), flex: 1 }}>Cancel</button>
+            <button onClick={handleToolsImport} style={{ ...styles.btn('primary'), flex: 1 }}>✅ Import Data</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Tools Import Error Toast
+  const ToolsImportError = () => {
+    if (!toolsImportError) return null;
+    return (
+      <div style={{
+        position: 'fixed', top: 24, right: 24, zIndex: 9999,
+        background: colors.red + '20', border: '1px solid ' + colors.red,
+        borderRadius: 12, padding: 16, maxWidth: 360,
+        display: 'flex', alignItems: 'flex-start', gap: 12
+      }}>
+        <span style={{ fontSize: 24 }}>⚠️</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ color: colors.red, fontWeight: 700, marginBottom: 4 }}>Import Failed</div>
+          <div style={{ color: colors.gray300, fontSize: 14 }}>{toolsImportError}</div>
+        </div>
+        <button onClick={() => setToolsImportError(null)} style={{ 
+          background: 'none', border: 'none', color: colors.gray400, cursor: 'pointer', fontSize: 18 
+        }}>✕</button>
+      </div>
+    );
+  };
+
   // ============================================
   // LOADING SCREEN (NEW - matches Pro)
   // ============================================
@@ -3143,7 +3423,7 @@ export default function App() {
           borderRadius: '50%',
           animation: 'spin 1s linear infinite'
         }} />
-       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <style>{\`@keyframes spin { to { transform: rotate(360deg); } }\`}</style>
       </div>
     );
   }
@@ -3230,6 +3510,10 @@ export default function App() {
       {showIFTAModal && <IFTAModal />}
       {showExpenseModal && <ExpenseModal />}
       {showPerDiemModal && <PerDiemModal />}
+
+      {/* Tools Import Modal */}
+      <ToolsImportModal />
+      <ToolsImportError />
     </div>
   );
 }
