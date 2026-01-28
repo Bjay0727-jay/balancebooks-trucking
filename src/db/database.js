@@ -1,298 +1,227 @@
 /**
- * BalanceBooks Trucking - IndexedDB Database Module v2.0
- * Enhanced with Driver, Truck, and Pay Statement support
+ * BalanceBooks Trucking - Migration Module v2.0
+ * Handles migration from localStorage to IndexedDB
+ * Self-contained - doesn't depend on database.js exports
  */
 
 const DB_NAME = 'BalanceBooksTrucking';
 const DB_VERSION = 2;
-
-const STORES = {
-  LOADS: 'loads',
-  FUEL: 'fuel',
-  IFTA: 'ifta',
-  EXPENSES: 'expenses',
-  PERDIEM: 'perdiem',
-  SETTINGS: 'settings',
-  DRIVERS: 'drivers',
-  TRUCKS: 'trucks',
-  PAYSTATEMENTS: 'paystatements'
-};
+const MIGRATION_KEY = 'balancebooks_migrated_v2';
 
 let dbInstance = null;
 
 /**
- * Initialize the database
+ * Initialize the database connection
  */
-export async function initDatabase() {
+async function initDB() {
+  if (dbInstance) return dbInstance;
+  
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onerror = () => {
-      console.error('[DB] Failed to open database:', request.error);
-      reject(request.error);
-    };
-
+    request.onerror = () => reject(request.error);
+    
     request.onsuccess = () => {
       dbInstance = request.result;
-      console.log('[DB] Database opened successfully, version:', dbInstance.version);
       resolve(dbInstance);
     };
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
-      const oldVersion = event.oldVersion;
-      console.log('[DB] Upgrading from version', oldVersion, 'to', DB_VERSION);
-
-      const storesToCreate = [
-        { name: STORES.LOADS, keyPath: 'id' },
-        { name: STORES.FUEL, keyPath: 'id' },
-        { name: STORES.IFTA, keyPath: 'id' },
-        { name: STORES.EXPENSES, keyPath: 'id' },
-        { name: STORES.PERDIEM, keyPath: 'id' },
-        { name: STORES.SETTINGS, keyPath: 'key' },
-        { name: STORES.DRIVERS, keyPath: 'id' },
-        { name: STORES.TRUCKS, keyPath: 'id' },
-        { name: STORES.PAYSTATEMENTS, keyPath: 'id' }
-      ];
-
-      storesToCreate.forEach(store => {
-        if (!db.objectStoreNames.contains(store.name)) {
-          db.createObjectStore(store.name, { keyPath: store.keyPath });
-          console.log('[DB] Created store:', store.name);
+      
+      const stores = ['loads', 'fuel', 'ifta', 'expenses', 'perdiem', 'drivers', 'trucks', 'paystatements'];
+      stores.forEach(name => {
+        if (!db.objectStoreNames.contains(name)) {
+          db.createObjectStore(name, { keyPath: 'id' });
         }
       });
+      
+      if (!db.objectStoreNames.contains('settings')) {
+        db.createObjectStore('settings', { keyPath: 'key' });
+      }
     };
   });
 }
 
-// Alias for backward compatibility with migration.js
-export const initDB = initDatabase;
-
-export function getDB() {
-  return dbInstance;
-}
-
-// ============ HELPER FUNCTIONS ============
-
+/**
+ * Get all items from a store
+ */
 async function getAll(storeName) {
+  const db = await initDB();
   return new Promise((resolve, reject) => {
-    if (!dbInstance) { reject(new Error('Database not initialized')); return; }
-    const tx = dbInstance.transaction(storeName, 'readonly');
-    const store = tx.objectStore(storeName);
-    const request = store.getAll();
-    request.onsuccess = () => resolve(request.result || []);
-    request.onerror = () => reject(request.error);
+    try {
+      const tx = db.transaction(storeName, 'readonly');
+      const store = tx.objectStore(storeName);
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => resolve([]);
+    } catch (e) {
+      resolve([]);
+    }
   });
 }
 
-async function getById(storeName, id) {
-  return new Promise((resolve, reject) => {
-    if (!dbInstance) { reject(new Error('Database not initialized')); return; }
-    const tx = dbInstance.transaction(storeName, 'readonly');
-    const store = tx.objectStore(storeName);
-    const request = store.get(id);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function saveItem(storeName, item) {
-  return new Promise((resolve, reject) => {
-    if (!dbInstance) { reject(new Error('Database not initialized')); return; }
-    const tx = dbInstance.transaction(storeName, 'readwrite');
-    const store = tx.objectStore(storeName);
-    const request = store.put(item);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-async function saveAll(storeName, items) {
-  return new Promise((resolve, reject) => {
-    if (!dbInstance) { reject(new Error('Database not initialized')); return; }
-    const tx = dbInstance.transaction(storeName, 'readwrite');
-    const store = tx.objectStore(storeName);
-    (items || []).forEach(item => store.put(item));
-    tx.oncomplete = () => resolve(true);
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
+/**
+ * Replace all items in a store
+ */
 async function replaceAll(storeName, items) {
+  const db = await initDB();
   return new Promise((resolve, reject) => {
-    if (!dbInstance) { reject(new Error('Database not initialized')); return; }
-    const tx = dbInstance.transaction(storeName, 'readwrite');
-    const store = tx.objectStore(storeName);
-    store.clear();
-    (items || []).forEach(item => store.put(item));
-    tx.oncomplete = () => resolve(true);
-    tx.onerror = () => reject(tx.error);
+    try {
+      const tx = db.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
+      store.clear();
+      (items || []).forEach(item => store.put(item));
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    } catch (e) {
+      resolve(false);
+    }
   });
 }
 
-async function deleteItem(storeName, id) {
-  return new Promise((resolve, reject) => {
-    if (!dbInstance) { reject(new Error('Database not initialized')); return; }
-    const tx = dbInstance.transaction(storeName, 'readwrite');
-    const store = tx.objectStore(storeName);
-    const request = store.delete(id);
-    request.onsuccess = () => resolve(true);
-    request.onerror = () => reject(request.error);
+/**
+ * Get a setting value
+ */
+async function getSetting(key) {
+  const db = await initDB();
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction('settings', 'readonly');
+      const store = tx.objectStore('settings');
+      const request = store.get(key);
+      request.onsuccess = () => resolve(request.result?.value);
+      request.onerror = () => resolve(null);
+    } catch (e) {
+      resolve(null);
+    }
   });
 }
 
-async function clearStore(storeName) {
-  return new Promise((resolve, reject) => {
-    if (!dbInstance) { reject(new Error('Database not initialized')); return; }
-    const tx = dbInstance.transaction(storeName, 'readwrite');
-    const store = tx.objectStore(storeName);
-    const request = store.clear();
-    request.onsuccess = () => resolve(true);
-    request.onerror = () => reject(request.error);
+/**
+ * Set a setting value
+ */
+async function setSetting(key, value) {
+  const db = await initDB();
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction('settings', 'readwrite');
+      const store = tx.objectStore('settings');
+      store.put({ key, value });
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    } catch (e) {
+      resolve(false);
+    }
   });
 }
 
-// ============ DATABASE EXPORTS ============
-
-// LOADS
-export const loadsDB = {
-  getAll: () => getAll(STORES.LOADS),
-  getById: (id) => getById(STORES.LOADS, id),
-  save: (load) => saveItem(STORES.LOADS, load),
-  saveAll: (loads) => saveAll(STORES.LOADS, loads),
-  replaceAll: (loads) => replaceAll(STORES.LOADS, loads),
-  delete: (id) => deleteItem(STORES.LOADS, id),
-  clear: () => clearStore(STORES.LOADS)
-};
-
-// FUEL
-export const fuelDB = {
-  getAll: () => getAll(STORES.FUEL),
-  getById: (id) => getById(STORES.FUEL, id),
-  save: (entry) => saveItem(STORES.FUEL, entry),
-  saveAll: (entries) => saveAll(STORES.FUEL, entries),
-  replaceAll: (entries) => replaceAll(STORES.FUEL, entries),
-  delete: (id) => deleteItem(STORES.FUEL, id),
-  clear: () => clearStore(STORES.FUEL)
-};
-
-// IFTA
-export const iftaDB = {
-  getAll: () => getAll(STORES.IFTA),
-  getById: (id) => getById(STORES.IFTA, id),
-  save: (entry) => saveItem(STORES.IFTA, entry),
-  replaceAll: (data) => replaceAll(STORES.IFTA, data),
-  delete: (id) => deleteItem(STORES.IFTA, id),
-  clear: () => clearStore(STORES.IFTA)
-};
-
-// EXPENSES
-export const expensesDB = {
-  getAll: () => getAll(STORES.EXPENSES),
-  getById: (id) => getById(STORES.EXPENSES, id),
-  save: (expense) => saveItem(STORES.EXPENSES, expense),
-  replaceAll: (expenses) => replaceAll(STORES.EXPENSES, expenses),
-  delete: (id) => deleteItem(STORES.EXPENSES, id),
-  clear: () => clearStore(STORES.EXPENSES)
-};
-
-// PER DIEM
-export const perdiemDB = {
-  getAll: () => getAll(STORES.PERDIEM),
-  getById: (id) => getById(STORES.PERDIEM, id),
-  save: (day) => saveItem(STORES.PERDIEM, day),
-  replaceAll: (days) => replaceAll(STORES.PERDIEM, days),
-  delete: (id) => deleteItem(STORES.PERDIEM, id),
-  clear: () => clearStore(STORES.PERDIEM)
-};
-
-// DRIVERS
-export const driversDB = {
-  getAll: () => getAll(STORES.DRIVERS),
-  getById: (id) => getById(STORES.DRIVERS, id),
-  save: (driver) => saveItem(STORES.DRIVERS, { ...driver, updatedAt: new Date().toISOString() }),
-  saveAll: (drivers) => saveAll(STORES.DRIVERS, drivers),
-  replaceAll: (drivers) => replaceAll(STORES.DRIVERS, drivers),
-  delete: (id) => deleteItem(STORES.DRIVERS, id),
-  clear: () => clearStore(STORES.DRIVERS)
-};
-
-// TRUCKS
-export const trucksDB = {
-  getAll: () => getAll(STORES.TRUCKS),
-  getById: (id) => getById(STORES.TRUCKS, id),
-  save: (truck) => saveItem(STORES.TRUCKS, { ...truck, updatedAt: new Date().toISOString() }),
-  saveAll: (trucks) => saveAll(STORES.TRUCKS, trucks),
-  replaceAll: (trucks) => replaceAll(STORES.TRUCKS, trucks),
-  delete: (id) => deleteItem(STORES.TRUCKS, id),
-  clear: () => clearStore(STORES.TRUCKS)
-};
-
-// PAY STATEMENTS
-export const payStatementsDB = {
-  getAll: () => getAll(STORES.PAYSTATEMENTS),
-  getById: (id) => getById(STORES.PAYSTATEMENTS, id),
-  save: (statement) => saveItem(STORES.PAYSTATEMENTS, { ...statement, updatedAt: new Date().toISOString() }),
-  replaceAll: (statements) => replaceAll(STORES.PAYSTATEMENTS, statements),
-  delete: (id) => deleteItem(STORES.PAYSTATEMENTS, id),
-  clear: () => clearStore(STORES.PAYSTATEMENTS)
-};
-
-// SETTINGS
-export const settingsDB = {
-  get: async (key) => {
-    const result = await getById(STORES.SETTINGS, key);
-    return result?.value;
-  },
-  set: async (key, value) => {
-    return saveItem(STORES.SETTINGS, { key, value });
-  },
-  delete: (key) => deleteItem(STORES.SETTINGS, key),
-  clear: () => clearStore(STORES.SETTINGS)
-};
-
-// ============ BULK OPERATIONS ============
-
-export async function exportAllData() {
-  return {
-    version: DB_VERSION,
-    exportedAt: new Date().toISOString(),
-    loads: await loadsDB.getAll(),
-    fuelEntries: await fuelDB.getAll(),
-    iftaData: await iftaDB.getAll(),
-    expenses: await expensesDB.getAll(),
-    perDiemDays: await perdiemDB.getAll(),
-    drivers: await driversDB.getAll(),
-    trucks: await trucksDB.getAll()
-  };
+/**
+ * Check if migration from localStorage is needed
+ */
+export function needsMigration() {
+  if (localStorage.getItem(MIGRATION_KEY)) {
+    return false;
+  }
+  const oldKeys = ['loads', 'fuelEntries', 'iftaData', 'expenses', 'perDiemDays'];
+  return oldKeys.some(key => localStorage.getItem(key));
 }
 
-export async function importAllData(data) {
-  if (data.loads) await loadsDB.replaceAll(data.loads);
-  if (data.fuelEntries) await fuelDB.replaceAll(data.fuelEntries);
-  if (data.iftaData) await iftaDB.replaceAll(data.iftaData);
-  if (data.expenses) await expensesDB.replaceAll(data.expenses);
-  if (data.perDiemDays) await perdiemDB.replaceAll(data.perDiemDays);
-  if (data.drivers) await driversDB.replaceAll(data.drivers);
-  if (data.trucks) await trucksDB.replaceAll(data.trucks);
-  if (data.autoBackup !== undefined) await settingsDB.set('autoBackup', data.autoBackup);
-  if (data.lastBackup) await settingsDB.set('lastBackup', data.lastBackup);
-  if (data.notifications !== undefined) await settingsDB.set('notifications', data.notifications);
-  return true;
+/**
+ * Migrate data from localStorage to IndexedDB
+ */
+export async function migrateFromLocalStorage() {
+  try {
+    if (localStorage.getItem(MIGRATION_KEY)) {
+      return { success: true, skipped: true };
+    }
+    
+    console.log('[Migration] Starting migration from localStorage...');
+    
+    // Migrate each data type
+    const loads = JSON.parse(localStorage.getItem('loads') || '[]');
+    if (loads.length > 0) await replaceAll('loads', loads);
+    
+    const fuelEntries = JSON.parse(localStorage.getItem('fuelEntries') || '[]');
+    if (fuelEntries.length > 0) await replaceAll('fuel', fuelEntries);
+    
+    const iftaData = JSON.parse(localStorage.getItem('iftaData') || '[]');
+    if (iftaData.length > 0) await replaceAll('ifta', iftaData);
+    
+    const expenses = JSON.parse(localStorage.getItem('expenses') || '[]');
+    if (expenses.length > 0) await replaceAll('expenses', expenses);
+    
+    const perDiemDays = JSON.parse(localStorage.getItem('perDiemDays') || '[]');
+    if (perDiemDays.length > 0) await replaceAll('perdiem', perDiemDays);
+    
+    // Migrate settings
+    const autoBackup = localStorage.getItem('autoBackup');
+    if (autoBackup) await setSetting('autoBackup', autoBackup === 'true');
+    
+    const lastBackup = localStorage.getItem('lastBackup');
+    if (lastBackup) await setSetting('lastBackup', lastBackup);
+    
+    const notifications = localStorage.getItem('notifications');
+    if (notifications) await setSetting('notifications', notifications === 'true');
+    
+    localStorage.setItem(MIGRATION_KEY, new Date().toISOString());
+    console.log('[Migration] Migration complete!');
+    return { success: true };
+    
+  } catch (error) {
+    console.error('[Migration] Migration failed:', error);
+    return { success: false, error: error.message };
+  }
 }
 
-export async function clearAllData() {
-  await loadsDB.clear();
-  await fuelDB.clear();
-  await iftaDB.clear();
-  await expensesDB.clear();
-  await perdiemDB.clear();
-  await driversDB.clear();
-  await trucksDB.clear();
-  await payStatementsDB.clear();
-  await settingsDB.clear();
-  return true;
+/**
+ * Load all data from IndexedDB
+ */
+export async function loadFromIndexedDB() {
+  try {
+    await initDB();
+    
+    const loads = await getAll('loads');
+    const fuelEntries = await getAll('fuel');
+    const iftaData = await getAll('ifta');
+    const expenses = await getAll('expenses');
+    const perDiemDays = await getAll('perdiem');
+    const drivers = await getAll('drivers');
+    const trucks = await getAll('trucks');
+    
+    const autoBackup = await getSetting('autoBackup');
+    const lastBackup = await getSetting('lastBackup');
+    const notifications = await getSetting('notifications');
+    
+    return {
+      loads: loads || [],
+      fuelEntries: fuelEntries || [],
+      iftaData: iftaData || [],
+      expenses: expenses || [],
+      perDiemDays: perDiemDays || [],
+      drivers: drivers || [],
+      trucks: trucks || [],
+      autoBackup: autoBackup ?? false,
+      lastBackup: lastBackup ?? null,
+      notifications: notifications ?? false
+    };
+    
+  } catch (error) {
+    console.error('[IndexedDB] Failed to load data:', error);
+    return {
+      loads: [],
+      fuelEntries: [],
+      iftaData: [],
+      expenses: [],
+      perDiemDays: [],
+      drivers: [],
+      trucks: [],
+      autoBackup: false,
+      lastBackup: null,
+      notifications: false
+    };
+  }
 }
 
-// Default export for convenience
-export const db = dbInstance;
+// Re-export initDB for compatibility
+export { initDB };
