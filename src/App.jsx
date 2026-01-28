@@ -3161,7 +3161,7 @@ export default function App() {
                 <label style={styles.label}>CDL State</label>
                 <select style={styles.select} value={form.licenseState} onChange={e => setForm({...form, licenseState: e.target.value})}>
                   <option value="">Select</option>
-                  {Object.keys(STATES).map(abbr => <option key={abbr} value={abbr}>{abbr}</option>)}
+                  {Object.keys(STATE_NAMES).map(abbr => <option key={abbr} value={abbr}>{abbr}</option>)}
                 </select>
               </div>
               <div style={styles.formGroup}>
@@ -3292,7 +3292,7 @@ export default function App() {
                 <label style={styles.label}>Plate State</label>
                 <select style={styles.select} value={form.licensePlateState} onChange={e => setForm({...form, licensePlateState: e.target.value})}>
                   <option value="">Select</option>
-                  {Object.keys(STATES).map(abbr => <option key={abbr} value={abbr}>{abbr}</option>)}
+                  {Object.keys(STATE_NAMES).map(abbr => <option key={abbr} value={abbr}>{abbr}</option>)}
                 </select>
               </div>
               <div style={styles.formGroup}>
