@@ -1,8 +1,9 @@
 /**
  * BalanceBooks Trucking - Migration Module v2.0
  * Handles migration from localStorage to IndexedDB
- * Self-contained - doesn't depend on database.js exports
  */
+
+import { initDatabase } from './database';
 
 const DB_NAME = 'BalanceBooksTrucking';
 const DB_VERSION = 2;
@@ -14,6 +15,14 @@ let dbInstance = null;
  * Initialize the database connection
  */
 async function initDB() {
+  // Use database.js's initDatabase to ensure dbInstance is set there too
+  try {
+    await initDatabase();
+  } catch (e) {
+    console.log('[Migration] database.js init skipped:', e.message);
+  }
+  
+  // Also maintain our own connection for migration operations
   if (dbInstance) return dbInstance;
   
   return new Promise((resolve, reject) => {
