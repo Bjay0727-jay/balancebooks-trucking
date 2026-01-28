@@ -1447,8 +1447,8 @@ export default function App() {
                 <label style={styles.label}>Driver</label>
                 <select style={styles.select} value={form.driverId || ''} onChange={e => setForm({...form, driverId: e.target.value})}>
                   <option value="">Select Driver</option>
-                  {drivers.filter(d => d.status === 'active').map(driver => (
-                    <option key={driver.id} value={driver.id}>{driver.firstName} {driver.lastName}</option>
+                  {(drivers || []).filter(d => d && d.status === 'active').map(driver => (
+                    <option key={driver.id} value={driver.id}>{driver.firstName || ''} {driver.lastName || ''}</option>
                   ))}
                 </select>
               </div>
@@ -3103,13 +3103,23 @@ export default function App() {
 
   // ============ DRIVER CRUD FUNCTIONS ============
   const saveDriver = (driver) => {
-    if (editingDriver) {
-      setDrivers(prev => prev.map(d => d.id === driver.id ? driver : d));
-    } else {
-      setDrivers(prev => [...prev, { ...driver, id: uid(), createdAt: new Date().toISOString() }]);
+    try {
+      if (editingDriver) {
+        setDrivers(prev => prev.map(d => d.id === driver.id ? { ...driver, updatedAt: new Date().toISOString() } : d));
+      } else {
+        const newDriver = { 
+          ...driver, 
+          id: uid(), 
+          createdAt: new Date().toISOString() 
+        };
+        setDrivers(prev => [...prev, newDriver]);
+      }
+      setShowDriverModal(false);
+      setEditingDriver(null);
+    } catch (err) {
+      console.error('Error saving driver:', err);
+      alert('Error saving driver. Please try again.');
     }
-    setShowDriverModal(false);
-    setEditingDriver(null);
   };
   
   const deleteDriver = (id) => {
@@ -3256,10 +3266,10 @@ export default function App() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div style={styles.formGroup}>
                 <label style={styles.label}>Assigned Truck</label>
-                <select style={styles.select} value={form.assignedTruckId} onChange={e => setForm({...form, assignedTruckId: e.target.value})}>
+                <select style={styles.select} value={form.assignedTruckId || ''} onChange={e => setForm({...form, assignedTruckId: e.target.value})}>
                   <option value="">No Truck Assigned</option>
-                  {trucks.filter(t => t.status === 'active').map(truck => (
-                    <option key={truck.id} value={truck.id}>{truck.unitNumber} - {truck.year} {truck.make}</option>
+                  {(trucks || []).filter(t => t && t.status === 'active').map(truck => (
+                    <option key={truck.id} value={truck.id}>{truck.unitNumber || 'Unknown'} - {truck.year || ''} {truck.make || ''}</option>
                   ))}
                 </select>
               </div>
@@ -3410,9 +3420,10 @@ export default function App() {
   // ============ DRIVERS VIEW ============
   const renderDrivers = () => {
     const getDriverTruck = (driverId) => {
-      const driver = drivers.find(d => d.id === driverId);
+      if (!drivers || !trucks) return null;
+      const driver = drivers.find(d => d && d.id === driverId);
       if (!driver?.assignedTruckId) return null;
-      return trucks.find(t => t.id === driver.assignedTruckId);
+      return trucks.find(t => t && t.id === driver.assignedTruckId) || null;
     };
 
     const getStatusColor = (status) => {
@@ -3453,7 +3464,7 @@ export default function App() {
         <div style={styles.statsGrid}>
           <div style={styles.statCard(colors.green)}>
             <div style={styles.statIcon}>✅</div>
-            <div style={styles.statValue(colors.green)}>{drivers.filter(d => d.status === 'active').length}</div>
+            <div style={styles.statValue(colors.green)}>{(drivers || []).filter(d => d && d.status === 'active').length}</div>
             <div style={styles.statLabel}>Active Drivers</div>
           </div>
           <div style={styles.statCard(colors.blue)}>
@@ -3469,7 +3480,7 @@ export default function App() {
         </div>
 
         {/* Driver Pay Report Card */}
-        {drivers.length > 0 && (
+        {drivers && drivers.length > 0 && (
           <div style={styles.card}>
             <div style={styles.cardTitle}>
               <span>📊 Driver Pay Report</span>
@@ -3488,16 +3499,16 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {drivers.filter(d => d.status === 'active').map(driver => {
+                {(drivers || []).filter(d => d && d.status === 'active').map(driver => {
                   const stats = getDriverStats(driver.id);
                   const profit = stats.totalRevenue - stats.totalPay;
                   return (
                     <tr key={driver.id}>
                       <td style={{ ...styles.td, borderRadius: '12px 0 0 12px', fontWeight: 600 }}>
-                        {driver.firstName} {driver.lastName}
+                        {driver.firstName || ''} {driver.lastName || ''}
                       </td>
                       <td style={styles.td}>
-                        <span style={{ textTransform: 'capitalize' }}>{driver.paymentType?.replace('_', ' ')}</span>
+                        <span style={{ textTransform: 'capitalize' }}>{(driver.paymentType || '').replace('_', ' ')}</span>
                       </td>
                       <td style={styles.td}>
                         <span style={{ color: colors.orange, fontWeight: 600 }}>{formatPayRate(driver.paymentType, driver.payRate)}</span>
@@ -3534,7 +3545,7 @@ export default function App() {
             </div>
           )}
 
-          {drivers.length === 0 ? (
+          {(!drivers || drivers.length === 0) ? (
             <div style={styles.emptyState}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>👤</div>
               <h3 style={{ color: colors.white, marginBottom: 8 }}>No Drivers Yet</h3>
@@ -3557,7 +3568,7 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {drivers.map(driver => {
+                {(drivers || []).map(driver => {
                   const truck = getDriverTruck(driver.id);
                   return (
                     <tr key={driver.id} style={{ background: driversSelect.isSelected(driver.id) ? `${colors.orange}15` : 'transparent' }}>
@@ -3606,7 +3617,7 @@ export default function App() {
 
   // ============ TRUCKS VIEW ============
   const renderTrucks = () => {
-    const getAssignedDriver = (truckId) => drivers.find(d => d.assignedTruckId === truckId);
+    const getAssignedDriver = (truckId) => (drivers || []).find(d => d && d.assignedTruckId === truckId) || null;
 
     const getStatusColor = (status) => {
       switch (status) {
@@ -3628,17 +3639,17 @@ export default function App() {
         <div style={styles.statsGrid}>
           <div style={styles.statCard(colors.green)}>
             <div style={styles.statIcon}>✅</div>
-            <div style={styles.statValue(colors.green)}>{trucks.filter(t => t.status === 'active').length}</div>
+            <div style={styles.statValue(colors.green)}>{(trucks || []).filter(t => t && t.status === 'active').length}</div>
             <div style={styles.statLabel}>Active Trucks</div>
           </div>
           <div style={styles.statCard(colors.teal)}>
             <div style={styles.statIcon}>🚚</div>
-            <div style={styles.statValue(colors.teal)}>{trucks.length}</div>
+            <div style={styles.statValue(colors.teal)}>{(trucks || []).length}</div>
             <div style={styles.statLabel}>Total Fleet</div>
           </div>
           <div style={styles.statCard(colors.orange)}>
             <div style={styles.statIcon}>🔧</div>
-            <div style={styles.statValue(colors.orange)}>{trucks.filter(t => t.status === 'maintenance').length}</div>
+            <div style={styles.statValue(colors.orange)}>{(trucks || []).filter(t => t && t.status === 'maintenance').length}</div>
             <div style={styles.statLabel}>In Maintenance</div>
           </div>
         </div>
@@ -3657,7 +3668,7 @@ export default function App() {
             </div>
           )}
 
-          {trucks.length === 0 ? (
+          {(!trucks || trucks.length === 0) ? (
             <div style={styles.emptyState}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>🚚</div>
               <h3 style={{ color: colors.white, marginBottom: 8 }}>No Trucks Yet</h3>
@@ -3679,7 +3690,7 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {trucks.map(truck => {
+                {(trucks || []).map(truck => {
                   const driver = getAssignedDriver(truck.id);
                   return (
                     <tr key={truck.id} style={{ background: trucksSelect.isSelected(truck.id) ? `${colors.orange}15` : 'transparent' }}>
@@ -3687,7 +3698,7 @@ export default function App() {
                         <input type="checkbox" checked={trucksSelect.isSelected(truck.id)} onChange={() => trucksSelect.toggleItem(truck.id)} style={styles.checkbox} />
                       </td>
                       <td style={styles.td}>
-                        <div style={{ fontWeight: 700, fontSize: 16 }}>{truck.unitNumber}</div>
+                        <div style={{ fontWeight: 700, fontSize: 16 }}>{truck.unitNumber || ''}</div>
                         <div style={{ fontSize: 12, color: colors.gray400 }}>{truck.licensePlate}</div>
                       </td>
                       <td style={styles.td}>
