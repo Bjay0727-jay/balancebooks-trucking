@@ -6036,11 +6036,26 @@ export default function App() {
       <aside style={styles.sidebar(sidebarCollapsed)}>
         {/* Logo */}
         <div style={styles.logoContainer(sidebarCollapsed)}>
-          <div style={styles.logoIcon}>🚛</div>
+          <svg viewBox="0 0 100 100" width={sidebarCollapsed ? 36 : 44} height={sidebarCollapsed ? 36 : 44} style={{ flexShrink: 0 }}>
+            <defs>
+              <linearGradient id="navyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style={{ stopColor: '#1e293b', stopOpacity: 1 }} />
+                <stop offset="100%" style={{ stopColor: '#0f172a', stopOpacity: 1 }} />
+              </linearGradient>
+              <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style={{ stopColor: '#fb923c', stopOpacity: 1 }} />
+                <stop offset="100%" style={{ stopColor: '#f97316', stopOpacity: 1 }} />
+              </linearGradient>
+            </defs>
+            <path d="M 50 5 L 92 18 L 92 55 C 92 78 73 92 50 98 C 27 92 8 78 8 55 L 8 18 Z" fill="url(#navyGrad)"/>
+            <path d="M 50 14 L 82 24 L 82 54 C 82 72 67 83 50 88 C 33 83 18 72 18 54 L 18 24 Z" fill="none" stroke="url(#orangeGrad)" strokeWidth="3"/>
+            <circle cx="50" cy="52" r="24" fill="url(#orangeGrad)"/>
+            <path d="M 36 52 L 46 62 L 66 42" fill="none" stroke="white" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
           {!sidebarCollapsed && (
             <div>
               <div style={styles.logoText}>BalanceBooks</div>
-              <div style={styles.logoSubtext}>Trucking</div>
+              <div style={styles.logoSubtext}>Trucking Pro</div>
             </div>
           )}
         </div>
