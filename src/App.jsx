@@ -16,10 +16,10 @@ import {
 import { migrateFromLocalStorage, loadFromIndexedDB, needsMigration } from './db/migration';
 
 // ============ CONSTANTS ============
-const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.0.0';
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.3.0';
 
 // Cache version for force refresh (matches BalanceBooks Pro pattern)
-const CACHE_VERSION = '2.0.0';
+const CACHE_VERSION = '2.3.0';
 const forceRefreshOnNewVersion = () => {
   const storedVersion = localStorage.getItem('bbt_app_version');
   if (storedVersion && storedVersion !== CACHE_VERSION) {
@@ -45,6 +45,89 @@ if (typeof window !== 'undefined') {
 const BB_TOOLS_STORAGE_KEY = 'bb_tools_export';
 
 
+// ============ THEME SYSTEM ============
+const lightTheme = {
+  name: 'light',
+  background: '#f1f5f9',
+  card: '#ffffff',
+  cardBorder: '#e2e8f0',
+  cardHover: '#f8fafc',
+  nav: '#0f172a',
+  navHover: '#1e293b',
+  navText: '#f1f5f9',
+  navMuted: '#94a3b8',
+  text: '#0f172a',
+  textSecondary: '#475569',
+  textMuted: '#94a3b8',
+  primary: '#f97316',
+  primaryHover: '#ea580c',
+  primaryLight: '#ffedd5',
+  success: '#059669',
+  successLight: '#d1fae5',
+  info: '#0284c7',
+  infoLight: '#e0f2fe',
+  warning: '#d97706',
+  warningLight: '#fef3c7',
+  danger: '#dc2626',
+  dangerLight: '#fee2e2',
+  inputBg: '#f8fafc',
+  inputBorder: '#cbd5e1',
+  tableBg: '#ffffff',
+  tableRowAlt: '#f8fafc',
+  shadow: '0 1px 3px rgba(15,23,42,0.06)',
+  shadowMd: '0 4px 6px rgba(15,23,42,0.07)',
+  shadowLg: '0 10px 15px rgba(15,23,42,0.1)',
+};
+
+const darkTheme = {
+  name: 'dark',
+  background: '#0f172a',
+  card: '#1e293b',
+  cardBorder: '#334155',
+  cardHover: '#334155',
+  nav: '#020617',
+  navHover: '#0f172a',
+  navText: '#f1f5f9',
+  navMuted: '#64748b',
+  text: '#f1f5f9',
+  textSecondary: '#cbd5e1',
+  textMuted: '#64748b',
+  primary: '#fb923c',
+  primaryHover: '#f97316',
+  primaryLight: '#7c2d1220',
+  success: '#34d399',
+  successLight: '#06543620',
+  info: '#38bdf8',
+  infoLight: '#0c4a6e20',
+  warning: '#fbbf24',
+  warningLight: '#78350f20',
+  danger: '#f87171',
+  dangerLight: '#7f1d1d20',
+  inputBg: '#0f172a',
+  inputBorder: '#475569',
+  tableBg: '#1e293b',
+  tableRowAlt: '#334155',
+  shadow: '0 1px 3px rgba(0,0,0,0.3)',
+  shadowMd: '0 4px 6px rgba(0,0,0,0.4)',
+  shadowLg: '0 10px 15px rgba(0,0,0,0.5)',
+};
+
+// Font sizes - smaller for cleaner look
+const fonts = {
+  xs: '10px',
+  sm: '11px',
+  base: '13px',
+  md: '14px',
+  lg: '15px',
+  xl: '18px',
+  xxl: '22px',
+};
+
+// Spacing and radius
+const spacing = { xs: '4px', sm: '8px', md: '12px', lg: '16px', xl: '20px', xxl: '24px' };
+const radius = { sm: '6px', md: '8px', lg: '10px', xl: '12px' };
+
+// Legacy colors object for backwards compatibility
 const colors = {
   navy: '#1e3a5f',
   navyDark: '#0f172a',
@@ -66,6 +149,206 @@ const colors = {
   gray800: '#1e293b',
   gray900: '#0f172a',
 };
+
+// ============ DYNAMIC STYLES GENERATOR ============
+const createStyles = (theme) => ({
+  app: {
+    display: 'flex',
+    minHeight: '100vh',
+    background: theme.background,
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    transition: 'background 0.3s ease',
+  },
+  sidebar: (collapsed) => ({
+    width: collapsed ? 60 : 200,
+    background: theme.nav,
+    borderRight: `1px solid ${theme.name === 'dark' ? '#1e293b' : 'transparent'}`,
+    display: 'flex',
+    flexDirection: 'column',
+    transition: 'width 0.2s ease',
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    zIndex: 100,
+    padding: collapsed ? '20px 8px' : '20px 12px',
+  }),
+  logoContainer: (collapsed) => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 24,
+    padding: '4px 8px',
+    justifyContent: collapsed ? 'center' : 'flex-start',
+  }),
+  logoIcon: {
+    width: 32,
+    height: 32,
+    background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryHover} 100%)`,
+    borderRadius: radius.md,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 14,
+    flexShrink: 0,
+    boxShadow: '0 2px 8px rgba(249,115,22,0.3)',
+  },
+  logoText: { color: theme.navText, fontWeight: 700, fontSize: fonts.md },
+  logoSubtext: { color: theme.navMuted, fontSize: fonts.xs },
+  collapseBtn: {
+    background: theme.navHover,
+    border: 'none',
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    color: theme.navMuted,
+    cursor: 'pointer',
+    marginBottom: spacing.lg,
+    fontSize: fonts.sm,
+  },
+  nav: { display: 'flex', flexDirection: 'column', gap: '2px', listStyle: 'none', padding: 0, margin: 0, flex: 1 },
+  navItem: (active, collapsed) => ({
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: collapsed ? 'center' : 'space-between',
+    gap: 10,
+    padding: collapsed ? '10px' : '9px 12px',
+    borderRadius: radius.sm,
+    border: 'none',
+    background: active ? `${theme.primary}20` : 'transparent',
+    color: active ? theme.primary : theme.navMuted,
+    cursor: 'pointer',
+    fontSize: fonts.base,
+    fontWeight: active ? 600 : 500,
+    textAlign: 'left',
+    transition: 'all 0.15s ease',
+  }),
+  navShortcut: { fontSize: fonts.xs, color: theme.navMuted, background: theme.navHover, padding: '2px 5px', borderRadius: 3 },
+  userSection: { marginTop: 'auto', padding: '14px 8px', borderTop: `1px solid ${theme.navHover}` },
+  userAvatar: {
+    width: 30, height: 30, borderRadius: '50%',
+    background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryHover} 100%)`,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: fonts.sm, color: '#fff', fontWeight: 600,
+  },
+  main: (collapsed) => ({
+    flex: 1,
+    marginLeft: collapsed ? 60 : 200,
+    padding: '20px 24px',
+    minHeight: '100vh',
+    transition: 'margin-left 0.2s ease, background 0.3s ease',
+  }),
+  topBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xl, gap: spacing.lg },
+  pageTitle: { color: theme.text, fontSize: fonts.xxl, fontWeight: 700, margin: 0, letterSpacing: '-0.3px' },
+  pageSubtitle: { color: theme.textMuted, fontSize: fonts.sm, margin: '2px 0 0' },
+  searchContainer: { flex: 1, maxWidth: 280, position: 'relative' },
+  searchInput: {
+    width: '100%', padding: '9px 12px 9px 34px', borderRadius: radius.md,
+    border: `1px solid ${theme.cardBorder}`, background: theme.card,
+    fontSize: fonts.sm, color: theme.text, outline: 'none',
+  },
+  searchIcon: { position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: theme.textMuted, fontSize: 12 },
+  actionBtn: (variant = 'secondary') => ({
+    padding: '8px 14px', borderRadius: radius.sm,
+    border: variant === 'primary' ? 'none' : `1px solid ${theme.cardBorder}`,
+    background: variant === 'primary' ? `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryHover} 100%)` : theme.card,
+    color: variant === 'primary' ? '#fff' : theme.textSecondary,
+    cursor: 'pointer', fontSize: fonts.sm, fontWeight: variant === 'primary' ? 600 : 500,
+    display: 'flex', alignItems: 'center', gap: 6,
+    boxShadow: variant === 'primary' ? '0 2px 8px rgba(249,115,22,0.3)' : 'none',
+  }),
+  themeToggle: {
+    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: radius.md,
+    border: `1px solid ${theme.cardBorder}`, background: theme.card, color: theme.textSecondary,
+    cursor: 'pointer', fontSize: fonts.sm, fontWeight: 500,
+  },
+  notificationBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36,
+    borderRadius: radius.md, border: `1px solid ${theme.cardBorder}`, background: theme.card,
+    color: theme.textSecondary, cursor: 'pointer', fontSize: 16, position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: '50%',
+    background: theme.danger, color: '#fff', fontSize: fonts.xs, fontWeight: 700,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  notificationDropdown: {
+    position: 'absolute', top: 44, right: 0, width: 300, background: theme.card,
+    border: `1px solid ${theme.cardBorder}`, borderRadius: radius.md, boxShadow: theme.shadowLg, zIndex: 100, overflow: 'hidden',
+  },
+  statsGrid: { display: 'flex', gap: 14, marginBottom: spacing.xl, flexWrap: 'wrap' },
+  statCard: (color, clickable = false, selected = false) => ({
+    flex: '1 1 200px', background: selected ? `${color}15` : theme.card, 
+    border: selected ? `2px solid ${color}` : `1px solid ${theme.cardBorder}`,
+    borderRadius: radius.lg, padding: '14px 16px', boxShadow: theme.shadow, 
+    cursor: clickable ? 'pointer' : 'default', transition: 'all 0.2s ease',
+  }),
+  statIcon: { fontSize: 24, marginBottom: 12 },
+  statValue: (color) => ({ color: color, fontSize: fonts.xl, fontWeight: 700, marginBottom: 2 }),
+  statLabel: { color: theme.textMuted, fontSize: fonts.sm, fontWeight: 500 },
+  trendBadge: (positive) => ({
+    display: 'inline-flex', alignItems: 'center', gap: 2, padding: '2px 6px', borderRadius: 4,
+    fontSize: fonts.xs, fontWeight: 600,
+    background: positive ? theme.successLight : theme.dangerLight,
+    color: positive ? theme.success : theme.danger,
+  }),
+  card: {
+    background: theme.card, border: `1px solid ${theme.cardBorder}`,
+    borderRadius: radius.lg, padding: spacing.lg, marginBottom: 14, boxShadow: theme.shadow,
+  },
+  cardTitle: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14,
+    fontSize: fonts.lg, fontWeight: 600, color: theme.text,
+  },
+  table: { width: '100%', borderCollapse: 'collapse' },
+  th: {
+    textAlign: 'left', padding: '8px 10px', color: theme.textMuted, fontSize: fonts.xs,
+    fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px', borderBottom: `1px solid ${theme.cardBorder}`,
+  },
+  td: { padding: '10px', color: theme.text, fontSize: fonts.base, borderBottom: `1px solid ${theme.cardBorder}` },
+  tdClickable: { padding: '10px', color: theme.text, fontSize: fonts.base, borderBottom: `1px solid ${theme.cardBorder}`, cursor: 'pointer' },
+  statusDot: (color) => ({ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: color, marginRight: 6 }),
+  input: {
+    width: '100%', padding: '10px 14px', background: theme.inputBg,
+    border: `1px solid ${theme.inputBorder}`, borderRadius: radius.md,
+    color: theme.text, fontSize: fonts.base, outline: 'none',
+  },
+  select: {
+    width: '100%', padding: '10px 14px', background: theme.inputBg,
+    border: `1px solid ${theme.inputBorder}`, borderRadius: radius.md,
+    color: theme.text, fontSize: fonts.base, outline: 'none', cursor: 'pointer',
+  },
+  label: { display: 'block', color: theme.textSecondary, fontSize: fonts.sm, fontWeight: 500, marginBottom: spacing.sm },
+  formGroup: { marginBottom: spacing.lg },
+  btn: (variant = 'primary') => {
+    const base = { padding: '10px 18px', borderRadius: radius.md, fontWeight: 600, fontSize: fonts.base, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 };
+    if (variant === 'primary') return { ...base, background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.primaryHover} 100%)`, border: 'none', color: '#fff', boxShadow: '0 2px 8px rgba(249,115,22,0.3)' };
+    if (variant === 'secondary') return { ...base, background: theme.inputBg, border: `1px solid ${theme.cardBorder}`, color: theme.textSecondary };
+    if (variant === 'danger') return { ...base, background: theme.dangerLight, border: `1px solid ${theme.danger}40`, color: theme.danger };
+    if (variant === 'success') return { ...base, background: theme.successLight, border: `1px solid ${theme.success}40`, color: theme.success };
+    return base;
+  },
+  modal: {
+    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+    background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: spacing.xl,
+  },
+  modalContent: {
+    background: theme.card, borderRadius: radius.xl, padding: spacing.xxl,
+    maxWidth: 600, width: '100%', maxHeight: '90vh', overflow: 'auto',
+    boxShadow: theme.shadowLg, border: `1px solid ${theme.cardBorder}`,
+  },
+  modalTitle: { fontSize: fonts.xl, fontWeight: 700, color: theme.text, marginBottom: spacing.xl },
+  emptyState: {
+    textAlign: 'center', padding: '60px 20px', color: theme.textMuted,
+  },
+  progressBar: { width: '100%', height: 4, background: theme.cardBorder, borderRadius: 2, overflow: 'hidden' },
+  progressFill: (color, percent) => ({ width: `${percent}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.5s ease' }),
+  pipelineItem: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderRadius: radius.sm, background: theme.inputBg, cursor: 'pointer' },
+  footer: { marginTop: spacing.xl, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: fonts.xs, color: theme.textMuted },
+  // Header style for consistency
+  header: { marginBottom: spacing.xl },
+  checkbox: { width: 18, height: 18, accentColor: theme.primary, cursor: 'pointer' },
+});
 
 // ============ PAY TYPES ============
 const PAY_TYPES = {
@@ -377,261 +660,8 @@ const calculateRouteDistance = (stops) => {
 
 // NOTE: localStorage functions removed - now using IndexedDB via ./db/database.js
 
-// ============ STYLES ============
-const styles = {
-  app: {
-    display: 'flex',
-    minHeight: '100vh',
-    background: `linear-gradient(135deg, ${colors.gray900} 0%, ${colors.navyDark} 100%)`,
-    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-  },
-  sidebar: (collapsed) => ({
-    width: collapsed ? 80 : 280,
-    background: `linear-gradient(180deg, ${colors.navyDark} 0%, ${colors.navy} 100%)`,
-    borderRight: `1px solid rgba(255,255,255,0.08)`,
-    display: 'flex',
-    flexDirection: 'column',
-    transition: 'width 0.3s ease',
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    bottom: 0,
-    zIndex: 100,
-  }),
-  logoContainer: {
-    padding: '32px 28px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 16,
-    borderBottom: '1px solid rgba(255,255,255,0.08)',
-  },
-  logoText: {
-    fontSize: 22,
-    fontWeight: 800,
-    color: colors.white,
-    letterSpacing: '-0.5px',
-  },
-  logoSubtext: {
-    fontSize: 13,
-    color: colors.orange,
-    fontWeight: 600,
-    letterSpacing: '0.5px',
-    marginTop: 2,
-  },
-  nav: {
-    listStyle: 'none',
-    padding: '24px 16px',
-    margin: 0,
-    flex: 1,
-  },
-  navItem: (active) => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 16,
-    padding: '16px 20px',
-    marginBottom: 8,
-    borderRadius: 14,
-    cursor: 'pointer',
-    fontSize: 15,
-    fontWeight: 500,
-    color: active ? colors.white : colors.gray400,
-    background: active ? `linear-gradient(135deg, ${colors.orange} 0%, ${colors.orangeLight} 100%)` : 'transparent',
-    transition: 'all 0.2s ease',
-    boxShadow: active ? '0 4px 20px rgba(249, 115, 22, 0.3)' : 'none',
-  }),
-  main: (collapsed) => ({
-    flex: 1,
-    marginLeft: collapsed ? 80 : 280,
-    padding: '40px 48px',
-    minHeight: '100vh',
-    transition: 'margin-left 0.3s ease',
-  }),
-  header: {
-    marginBottom: 40,
-  },
-  pageTitle: {
-    fontSize: 36,
-    fontWeight: 800,
-    color: colors.white,
-    marginBottom: 8,
-    letterSpacing: '-1px',
-  },
-  pageSubtitle: {
-    fontSize: 16,
-    color: colors.gray400,
-  },
-  statsGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-    gap: 28,
-    marginBottom: 40,
-  },
-  statCard: (color, clickable = false, selected = false) => ({
-    background: selected 
-      ? `linear-gradient(135deg, ${color}30 0%, ${color}20 100%)` 
-      : `linear-gradient(135deg, ${colors.gray800} 0%, ${colors.gray900} 100%)`,
-    borderRadius: 20,
-    padding: '32px',
-    border: selected ? `2px solid ${color}` : `1px solid ${color}33`,
-    cursor: clickable ? 'pointer' : 'default',
-    transition: 'all 0.3s ease',
-    position: 'relative',
-    overflow: 'hidden',
-  }),
-  statIcon: {
-    fontSize: 32,
-    marginBottom: 20,
-  },
-  statValue: (color) => ({
-    fontSize: 36,
-    fontWeight: 800,
-    color: color,
-    marginBottom: 8,
-    letterSpacing: '-1px',
-  }),
-  statLabel: {
-    fontSize: 14,
-    color: colors.gray400,
-    fontWeight: 500,
-  },
-  card: {
-    background: `linear-gradient(135deg, ${colors.gray800} 0%, ${colors.gray900} 100%)`,
-    borderRadius: 20,
-    padding: '36px',
-    marginBottom: 32,
-    border: `1px solid rgba(255,255,255,0.06)`,
-  },
-  cardTitle: {
-    fontSize: 22,
-    fontWeight: 700,
-    color: colors.white,
-    marginBottom: 28,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 20,
-  },
-  table: {
-    width: '100%',
-    borderCollapse: 'separate',
-    borderSpacing: '0 12px',
-  },
-  th: {
-    textAlign: 'left',
-    padding: '16px 20px',
-    color: colors.gray400,
-    fontWeight: 600,
-    fontSize: 13,
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-    borderBottom: `1px solid ${colors.gray700}`,
-  },
-  td: {
-    padding: '20px',
-    color: colors.white,
-    background: colors.gray800,
-    fontSize: 15,
-  },
-  tdClickable: {
-    padding: '20px',
-    color: colors.white,
-    background: colors.gray800,
-    fontSize: 15,
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-  },
-  input: {
-    width: '100%',
-    padding: '16px 20px',
-    background: colors.gray800,
-    border: `2px solid ${colors.gray700}`,
-    borderRadius: 14,
-    color: colors.white,
-    fontSize: 16,
-    outline: 'none',
-    transition: 'border-color 0.2s ease',
-  },
-  select: {
-    width: '100%',
-    padding: '16px 20px',
-    background: colors.gray800,
-    border: `2px solid ${colors.gray700}`,
-    borderRadius: 14,
-    color: colors.white,
-    fontSize: 16,
-    outline: 'none',
-    cursor: 'pointer',
-  },
-  btn: (variant = 'primary') => ({
-    padding: '14px 28px',
-    borderRadius: 12,
-    border: 'none',
-    fontSize: 15,
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 10,
-    ...(variant === 'primary' && {
-      background: `linear-gradient(135deg, ${colors.orange} 0%, ${colors.orangeLight} 100%)`,
-      color: colors.white,
-      boxShadow: '0 4px 20px rgba(249, 115, 22, 0.3)',
-    }),
-    ...(variant === 'secondary' && {
-      background: colors.gray700,
-      color: colors.white,
-    }),
-    ...(variant === 'danger' && {
-      background: colors.red,
-      color: colors.white,
-    }),
-    ...(variant === 'success' && {
-      background: colors.green,
-      color: colors.white,
-    }),
-  }),
-  modal: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: 'rgba(0,0,0,0.8)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-    padding: 24,
-  },
-  modalContent: {
-    background: `linear-gradient(135deg, ${colors.gray800} 0%, ${colors.gray900} 100%)`,
-    borderRadius: 24,
-    padding: '48px',
-    maxWidth: 700,
-    width: '100%',
-    maxHeight: '90vh',
-    overflowY: 'auto',
-    border: `1px solid ${colors.gray700}`,
-  },
-  formGroup: {
-    marginBottom: 28,
-  },
-  label: {
-    display: 'block',
-    marginBottom: 12,
-    color: colors.gray300,
-    fontWeight: 600,
-    fontSize: 14,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    accentColor: colors.orange,
-    cursor: 'pointer',
-  },
-};
+// NOTE: Styles are now dynamically generated via createStyles(theme) - see THEME SYSTEM section above
+// The 'styles' variable is created inside the App component based on current theme
 
 // ============ LOGO COMPONENT ============
 const BalanceBooksLogo = ({ size = 48 }) => (
@@ -777,6 +807,13 @@ export default function App() {
   // ============ UI STATE ============
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    // Load saved preference from localStorage
+    const saved = localStorage.getItem('bbt_dark_mode');
+    return saved ? JSON.parse(saved) : false; // Default to light mode
+  });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showNotifications, setShowNotifications] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [showFuelModal, setShowFuelModal] = useState(false);
   const [showIFTAModal, setShowIFTAModal] = useState(false);
@@ -826,6 +863,25 @@ export default function App() {
   const [showToolsImport, setShowToolsImport] = useState(false);
   const [toolsImportData, setToolsImportData] = useState(null);
   const [toolsImportError, setToolsImportError] = useState(null);
+
+  // ============ THEME & STYLES ============
+  const theme = darkMode ? darkTheme : lightTheme;
+  const styles = useMemo(() => createStyles(theme), [darkMode]);
+  
+  // Save dark mode preference
+  useEffect(() => {
+    localStorage.setItem('bbt_dark_mode', JSON.stringify(darkMode));
+  }, [darkMode]);
+
+  // Sample notifications (would be dynamic in production)
+  const notifications = useMemo(() => {
+    const items = [];
+    const pendingLoads = loads.filter(l => l.status === 'pending').length;
+    if (pendingLoads > 0) items.push({ id: 1, message: `${pendingLoads} loads pending dispatch`, time: 'Now', type: 'info' });
+    const inTransit = loads.filter(l => l.status === 'in_transit').length;
+    if (inTransit > 0) items.push({ id: 2, message: `${inTransit} loads in transit`, time: 'Active', type: 'success' });
+    return items;
+  }, [loads]);
 
 
   // ============================================
@@ -5961,12 +6017,19 @@ export default function App() {
   }
 
   // ============ MAIN RENDER ============
+  // Navigation items with keyboard shortcuts
+  const navItemsWithShortcuts = navItems.map((item, i) => ({
+    ...item,
+    shortcut: ['D', 'C', 'L', 'F', 'R', 'P', 'T', 'I', 'E', 'M', 'S'][i] || ''
+  }));
+
   return (
     <div style={styles.app}>
       {/* Sidebar */}
       <aside style={styles.sidebar(sidebarCollapsed)}>
-        <div style={styles.logoContainer}>
-          <BalanceBooksLogo size={44} />
+        {/* Logo */}
+        <div style={styles.logoContainer(sidebarCollapsed)}>
+          <div style={styles.logoIcon}>🚛</div>
           {!sidebarCollapsed && (
             <div>
               <div style={styles.logoText}>BalanceBooks</div>
@@ -5974,36 +6037,129 @@ export default function App() {
             </div>
           )}
         </div>
+
+        {/* Collapse Toggle */}
+        <button
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          style={styles.collapseBtn}
+        >
+          {sidebarCollapsed ? '→' : '← Collapse'}
+        </button>
         
+        {/* Navigation */}
         <nav style={styles.nav}>
-          {navItems.map(item => (
-            <div
+          {navItemsWithShortcuts.map(item => (
+            <button
               key={item.id}
-              style={styles.navItem(activeTab === item.id)}
+              style={styles.navItem(activeTab === item.id, sidebarCollapsed)}
               onClick={() => setActiveTab(item.id)}
+              title={sidebarCollapsed ? `${item.label} (${item.shortcut})` : ''}
             >
-              <span style={{ fontSize: 22 }}>{item.icon}</span>
-              {!sidebarCollapsed && <span>{item.label}</span>}
-            </div>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 14 }}>{item.icon}</span>
+                {!sidebarCollapsed && item.label}
+              </span>
+              {!sidebarCollapsed && item.shortcut && (
+                <span style={styles.navShortcut}>{item.shortcut}</span>
+              )}
+            </button>
           ))}
         </nav>
 
-        <div style={{ padding: '20px 24px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-          {!sidebarCollapsed && (
-            <div style={{ fontSize: 13, color: colors.gray500 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <span style={{ color: colors.green }}>🔒</span> 100% Offline
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: colors.teal }}>🛡️</span> Privacy-First
+        {/* User Section */}
+        {!sidebarCollapsed && (
+          <div style={styles.userSection}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={styles.userAvatar}>BB</div>
+              <div>
+                <div style={{ color: theme.navText, fontSize: fonts.sm, fontWeight: 600 }}>BalanceBooks</div>
+                <div style={{ color: theme.navMuted, fontSize: fonts.xs }}>Pro Plan ✨</div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </aside>
 
       {/* Main Content */}
       <main style={styles.main(sidebarCollapsed)}>
+        {/* Top Bar - Only show on dashboard */}
+        {activeTab === 'dashboard' && (
+          <div style={styles.topBar}>
+            <div>
+              <h1 style={styles.pageTitle}>Dashboard</h1>
+              <p style={styles.pageSubtitle}>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            </div>
+            
+            {/* Search */}
+            <div style={styles.searchContainer}>
+              <input
+                type="text"
+                placeholder="Search... (⌘K)"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={styles.searchInput}
+              />
+              <span style={styles.searchIcon}>🔍</span>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {/* Dark Mode Toggle */}
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                style={styles.themeToggle}
+              >
+                {darkMode ? '☀️ Light' : '🌙 Dark'}
+              </button>
+
+              {/* Notifications */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  style={styles.notificationBtn}
+                >
+                  🔔
+                  {notifications.length > 0 && (
+                    <span style={styles.notificationBadge}>{notifications.length}</span>
+                  )}
+                </button>
+                
+                {showNotifications && (
+                  <div style={styles.notificationDropdown}>
+                    <div style={{ padding: '12px 14px', borderBottom: `1px solid ${theme.cardBorder}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: fonts.base, fontWeight: 600, color: theme.text }}>Notifications</span>
+                      <button 
+                        onClick={() => setShowNotifications(false)}
+                        style={{ background: 'none', border: 'none', color: theme.primary, fontSize: fonts.sm, cursor: 'pointer' }}
+                      >
+                        Close
+                      </button>
+                    </div>
+                    {notifications.length > 0 ? notifications.map(n => (
+                      <div key={n.id} style={{ padding: '12px 14px', borderBottom: `1px solid ${theme.cardBorder}` }}>
+                        <div style={{ fontSize: fonts.sm, color: theme.text, marginBottom: 2 }}>{n.message}</div>
+                        <div style={{ fontSize: fonts.xs, color: theme.textMuted }}>{n.time}</div>
+                      </div>
+                    )) : (
+                      <div style={{ padding: '20px 14px', textAlign: 'center', color: theme.textMuted, fontSize: fonts.sm }}>
+                        No notifications
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <button style={styles.actionBtn('secondary')} onClick={() => setActiveTab('fuel')}>
+                ⛽ Fuel
+              </button>
+              <button style={styles.actionBtn('primary')} onClick={() => { setEditingLoad(null); setShowLoadModal(true); }}>
+                + New Load
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Page Content */}
         {activeTab === 'dashboard' && renderDashboard()}
         {activeTab === 'dispatch' && renderDispatch()}
         {activeTab === 'loads' && renderLoads()}
@@ -6016,6 +6172,12 @@ export default function App() {
         {activeTab === 'expenses' && renderExpenses()}
         {activeTab === 'perdiem' && renderPerDiem()}
         {activeTab === 'settings' && renderSettings()}
+
+        {/* Footer */}
+        <div style={styles.footer}>
+          <span>BalanceBooks Trucking v{APP_VERSION}</span>
+          <span>{darkMode ? '🌙 Dark' : '☀️ Light'} Mode</span>
+        </div>
       </main>
 
       {/* Modals */}
