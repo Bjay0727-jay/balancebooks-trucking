@@ -48,35 +48,35 @@ const BB_TOOLS_STORAGE_KEY = 'bb_tools_export';
 // ============ THEME SYSTEM ============
 const lightTheme = {
   name: 'light',
-  background: '#f1f5f9',
-  card: '#ffffff',
-  cardBorder: '#e2e8f0',
-  cardHover: '#f8fafc',
-  nav: '#0f172a',
+  background: '#e2e8f0',      // Muted gray-blue (was #f1f5f9)
+  card: '#f1f5f9',            // Light gray (was #ffffff)
+  cardBorder: '#cbd5e1',      // Darker border
+  cardHover: '#e2e8f0',
+  nav: '#0f172a',             // Keep dark nav
   navHover: '#1e293b',
   navText: '#f1f5f9',
   navMuted: '#94a3b8',
   text: '#0f172a',
-  textSecondary: '#475569',
-  textMuted: '#94a3b8',
-  primary: '#f97316',
-  primaryHover: '#ea580c',
-  primaryLight: '#ffedd5',
-  success: '#059669',
-  successLight: '#d1fae5',
-  info: '#0284c7',
-  infoLight: '#e0f2fe',
-  warning: '#d97706',
-  warningLight: '#fef3c7',
-  danger: '#dc2626',
-  dangerLight: '#fee2e2',
-  inputBg: '#f8fafc',
-  inputBorder: '#cbd5e1',
-  tableBg: '#ffffff',
-  tableRowAlt: '#f8fafc',
-  shadow: '0 1px 3px rgba(15,23,42,0.06)',
-  shadowMd: '0 4px 6px rgba(15,23,42,0.07)',
-  shadowLg: '0 10px 15px rgba(15,23,42,0.1)',
+  textSecondary: '#334155',   // Darker secondary
+  textMuted: '#64748b',       // Darker muted
+  primary: '#ea580c',         // Slightly darker orange
+  primaryHover: '#c2410c',
+  primaryLight: '#fed7aa',
+  success: '#047857',         // Darker green
+  successLight: '#a7f3d0',
+  info: '#0369a1',            // Darker blue
+  infoLight: '#bae6fd',
+  warning: '#b45309',         // Darker amber
+  warningLight: '#fde68a',
+  danger: '#b91c1c',          // Darker red
+  dangerLight: '#fecaca',
+  inputBg: '#e2e8f0',         // Gray input bg
+  inputBorder: '#94a3b8',     // Darker border
+  tableBg: '#f1f5f9',
+  tableRowAlt: '#e2e8f0',
+  shadow: '0 1px 3px rgba(15,23,42,0.1)',
+  shadowMd: '0 4px 6px rgba(15,23,42,0.1)',
+  shadowLg: '0 10px 15px rgba(15,23,42,0.15)',
 };
 
 const darkTheme = {
@@ -808,9 +808,15 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
-    // Load saved preference from localStorage
+    // v2.3 update: Reset to dark mode default
+    const themeVersion = localStorage.getItem('bbt_theme_version');
+    if (themeVersion !== '2.3') {
+      localStorage.setItem('bbt_theme_version', '2.3');
+      localStorage.setItem('bbt_dark_mode', 'true');
+      return true;
+    }
     const saved = localStorage.getItem('bbt_dark_mode');
-    return saved !== null ? JSON.parse(saved) : true; // Default to dark mode
+    return saved !== null ? JSON.parse(saved) : true;
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
