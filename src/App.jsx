@@ -16,7 +16,7 @@ import {
 import { migrateFromLocalStorage, loadFromIndexedDB, needsMigration } from './db/migration';
 
 // ============ CONSTANTS ============
-const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.0.0';
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.1.0';
 
 // Cache version for force refresh (matches BalanceBooks Pro pattern)
 const CACHE_VERSION = '2.0.0';
@@ -785,6 +785,11 @@ export default function App() {
   const [drivers, setDrivers] = useState([]);
   const [trucks, setTrucks] = useState([]);
 
+  // Driver Pay State
+  const [payPeriodStart, setPayPeriodStart] = useState('');
+  const [payPeriodEnd, setPayPeriodEnd] = useState('');
+  const [selectedPayDriver, setSelectedPayDriver] = useState('all');
+
   // ============ SETTINGS STATE (NEW - matches Pro) ============
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
   const [lastBackupDate, setLastBackupDate] = useState(null);
@@ -1295,6 +1300,7 @@ export default function App() {
     { id: 'loads', label: 'Loads', icon: '🚛' },
     { id: 'fuel', label: 'Fuel Log', icon: '⛽' },
     { id: 'drivers', label: 'Drivers', icon: '👤' },
+    { id: 'driverpay', label: 'Driver Pay', icon: '💵' },
     { id: 'trucks', label: 'Trucks', icon: '🚚' },
     { id: 'ifta', label: 'IFTA', icon: '📋' },
     { id: 'expenses', label: 'Expenses', icon: '💰' },
@@ -3787,6 +3793,268 @@ export default function App() {
     );
   };
 
+  // ============ DRIVER PAY VIEW ============
+  const renderDriverPay = () => {
+    // Get current week dates if not set
+    const getWeekDates = () => {
+      const now = new Date();
+      const day = now.getDay();
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - day + (day === 0 ? -6 : 1));
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      return {
+        start: monday.toISOString().split('T')[0],
+        end: sunday.toISOString().split('T')[0]
+      };
+    };
+
+    const currentWeek = getWeekDates();
+    const startDate = payPeriodStart || currentWeek.start;
+    const endDate = payPeriodEnd || currentWeek.end;
+
+    // Filter loads by date range and driver
+    const filteredLoads = loads.filter(load => {
+      const loadDate = load.date;
+      const inRange = loadDate >= startDate && loadDate <= endDate;
+      const matchesDriver = selectedPayDriver === 'all' || load.driverId === selectedPayDriver;
+      return inRange && matchesDriver;
+    });
+
+    // Group loads by driver and calculate pay
+    const driverPayMap = {};
+    
+    filteredLoads.forEach(load => {
+      const driverId = load.driverId || 'unassigned';
+      if (!driverPayMap[driverId]) {
+        const driver = drivers.find(d => d.id === driverId);
+        driverPayMap[driverId] = {
+          driver: driver || { id: 'unassigned', firstName: 'Unassigned', lastName: '', paymentType: 'none', payRate: 0 },
+          loads: [],
+          totalMiles: 0,
+          totalRevenue: 0,
+          totalPay: 0,
+        };
+      }
+      
+      const miles = (parseFloat(load.loadedMiles) || 0) + (parseFloat(load.deadheadMiles) || 0);
+      const revenue = parseFloat(load.rate) || 0;
+      const driver = driverPayMap[driverId].driver;
+      
+      let pay = 0;
+      if (driver.paymentType === 'perMile') {
+        pay = miles * (parseFloat(driver.payRate) || 0);
+      } else if (driver.paymentType === 'percentage') {
+        pay = revenue * (parseFloat(driver.payRate) || 0) / 100;
+      } else if (driver.paymentType === 'flatRate') {
+        pay = parseFloat(driver.payRate) || 0;
+      }
+      
+      driverPayMap[driverId].loads.push({ ...load, calculatedPay: pay });
+      driverPayMap[driverId].totalMiles += miles;
+      driverPayMap[driverId].totalRevenue += revenue;
+      driverPayMap[driverId].totalPay += pay;
+    });
+
+    const payStatements = Object.values(driverPayMap)
+      .filter(d => d.driver.id !== 'unassigned' || d.loads.length > 0)
+      .sort((a, b) => `${a.driver.firstName}`.localeCompare(`${b.driver.firstName}`));
+
+    const grandTotals = payStatements.reduce((acc, stmt) => ({
+      loads: acc.loads + stmt.loads.length,
+      miles: acc.miles + stmt.totalMiles,
+      revenue: acc.revenue + stmt.totalRevenue,
+      pay: acc.pay + stmt.totalPay,
+    }), { loads: 0, miles: 0, revenue: 0, pay: 0 });
+
+    const setThisWeek = () => {
+      const dates = getWeekDates();
+      setPayPeriodStart(dates.start);
+      setPayPeriodEnd(dates.end);
+    };
+
+    const setLastWeek = () => {
+      const now = new Date();
+      const day = now.getDay();
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - day + (day === 0 ? -6 : 1) - 7);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      setPayPeriodStart(monday.toISOString().split('T')[0]);
+      setPayPeriodEnd(sunday.toISOString().split('T')[0]);
+    };
+
+    const setThisMonth = () => {
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      setPayPeriodStart(firstDay.toISOString().split('T')[0]);
+      setPayPeriodEnd(lastDay.toISOString().split('T')[0]);
+    };
+
+    const setLastMonth = () => {
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastDay = new Date(now.getFullYear(), now.getMonth(), 0);
+      setPayPeriodStart(firstDay.toISOString().split('T')[0]);
+      setPayPeriodEnd(lastDay.toISOString().split('T')[0]);
+    };
+
+    const getPayTypeLabel = (type, rate) => {
+      if (type === 'perMile') return `$${rate}/mi`;
+      if (type === 'percentage') return `${rate}%`;
+      if (type === 'flatRate') return `$${rate}/load`;
+      return 'Not Set';
+    };
+
+    const exportStatementCSV = (stmt) => {
+      const driverName = `${stmt.driver.firstName}_${stmt.driver.lastName}`.replace(/\s+/g, '_');
+      const columns = [
+        { key: 'date', label: 'Date' },
+        { key: 'loadNumber', label: 'Load #' },
+        { key: 'broker', label: 'Broker' },
+        { key: 'origin', label: 'Origin', format: (_, l) => l.stops?.[0]?.location || '' },
+        { key: 'dest', label: 'Destination', format: (_, l) => l.stops?.[l.stops?.length - 1]?.location || '' },
+        { key: 'miles', label: 'Miles', format: (_, l) => ((parseFloat(l.loadedMiles) || 0) + (parseFloat(l.deadheadMiles) || 0)).toFixed(0) },
+        { key: 'rate', label: 'Revenue', format: v => (parseFloat(v) || 0).toFixed(2) },
+        { key: 'calculatedPay', label: 'Pay', format: v => (parseFloat(v) || 0).toFixed(2) },
+      ];
+      exportToCSV(stmt.loads, columns, `PayStatement_${driverName}_${startDate}_to_${endDate}.csv`);
+    };
+
+    return (
+      <>
+        <div style={styles.header}>
+          <h1 style={styles.pageTitle}>Driver Pay Statements</h1>
+          <p style={styles.pageSubtitle}>Calculate and review driver pay for any period</p>
+        </div>
+
+        {/* Filters */}
+        <div style={{ ...styles.card, marginBottom: 24 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-end' }}>
+            <div>
+              <label style={styles.label}>Start Date</label>
+              <input type="date" style={{ ...styles.input, marginBottom: 0, width: 150 }} value={startDate} onChange={e => setPayPeriodStart(e.target.value)} />
+            </div>
+            <div>
+              <label style={styles.label}>End Date</label>
+              <input type="date" style={{ ...styles.input, marginBottom: 0, width: 150 }} value={endDate} onChange={e => setPayPeriodEnd(e.target.value)} />
+            </div>
+            <div>
+              <label style={styles.label}>Driver</label>
+              <select style={{ ...styles.select, marginBottom: 0, width: 180 }} value={selectedPayDriver} onChange={e => setSelectedPayDriver(e.target.value)}>
+                <option value="all">All Drivers</option>
+                {drivers.filter(d => d.status === 'active').map(d => (
+                  <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button style={{ ...styles.btn('secondary'), padding: '10px 12px', fontSize: 12 }} onClick={setThisWeek}>This Week</button>
+              <button style={{ ...styles.btn('secondary'), padding: '10px 12px', fontSize: 12 }} onClick={setLastWeek}>Last Week</button>
+              <button style={{ ...styles.btn('secondary'), padding: '10px 12px', fontSize: 12 }} onClick={setThisMonth}>This Month</button>
+              <button style={{ ...styles.btn('secondary'), padding: '10px 12px', fontSize: 12 }} onClick={setLastMonth}>Last Month</button>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary Stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>Total Loads</div>
+            <div style={styles.statValue(colors.teal)}>{grandTotals.loads}</div>
+          </div>
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>Total Miles</div>
+            <div style={styles.statValue(colors.orange)}>{formatNumber(grandTotals.miles)}</div>
+          </div>
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>Total Revenue</div>
+            <div style={styles.statValue(colors.blue)}>{formatCurrency(grandTotals.revenue)}</div>
+          </div>
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>Total Driver Pay</div>
+            <div style={styles.statValue(colors.green)}>{formatCurrency(grandTotals.pay)}</div>
+          </div>
+        </div>
+
+        {/* Pay Statements */}
+        {payStatements.length === 0 ? (
+          <div style={styles.card}>
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: colors.gray400 }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>💵</div>
+              <p style={{ fontSize: 18, marginBottom: 8 }}>No loads found for this period</p>
+              <p style={{ fontSize: 14 }}>Adjust the date range or assign drivers to loads</p>
+            </div>
+          </div>
+        ) : (
+          payStatements.map(stmt => (
+            <div key={stmt.driver.id} style={{ ...styles.card, marginBottom: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 16, borderBottom: `1px solid ${colors.gray700}` }}>
+                <div>
+                  <h3 style={{ color: colors.white, fontSize: 18, marginBottom: 4 }}>
+                    {stmt.driver.firstName} {stmt.driver.lastName}
+                    {stmt.driver.id === 'unassigned' && <span style={{ color: colors.gray400, fontWeight: 400, marginLeft: 8 }}>(Unassigned)</span>}
+                  </h3>
+                  <p style={{ color: colors.gray400, fontSize: 13 }}>
+                    Pay: <span style={{ color: colors.teal }}>{getPayTypeLabel(stmt.driver.paymentType, stmt.driver.payRate)}</span>
+                    {' • '}{stmt.loads.length} load{stmt.loads.length !== 1 ? 's' : ''}
+                    {' • '}{formatNumber(stmt.totalMiles)} mi
+                  </p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ color: colors.gray400, fontSize: 11 }}>Total Pay</div>
+                    <div style={{ color: colors.green, fontSize: 24, fontWeight: 800 }}>{formatCurrency(stmt.totalPay)}</div>
+                  </div>
+                  <button style={styles.btn('secondary')} onClick={() => exportStatementCSV(stmt)}>📥 CSV</button>
+                </div>
+              </div>
+
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Date</th>
+                    <th style={styles.th}>Load #</th>
+                    <th style={styles.th}>Route</th>
+                    <th style={styles.th}>Miles</th>
+                    <th style={styles.th}>Revenue</th>
+                    <th style={styles.th}>Pay</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stmt.loads.map(load => {
+                    const miles = (parseFloat(load.loadedMiles) || 0) + (parseFloat(load.deadheadMiles) || 0);
+                    const origin = load.stops?.[0]?.location || '?';
+                    const dest = load.stops?.[load.stops?.length - 1]?.location || '?';
+                    return (
+                      <tr key={load.id}>
+                        <td style={styles.td}>{load.date}</td>
+                        <td style={styles.td}>{load.loadNumber || '-'}</td>
+                        <td style={styles.td}>{origin} → {dest}</td>
+                        <td style={styles.td}>{formatNumber(miles)}</td>
+                        <td style={{ ...styles.td, color: colors.blue }}>{formatCurrency(load.rate)}</td>
+                        <td style={{ ...styles.td, color: colors.green, fontWeight: 600 }}>{formatCurrency(load.calculatedPay)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: colors.navyDark }}>
+                    <td colSpan="3" style={{ ...styles.td, fontWeight: 600, color: colors.white }}>Totals</td>
+                    <td style={{ ...styles.td, fontWeight: 600, color: colors.orange }}>{formatNumber(stmt.totalMiles)}</td>
+                    <td style={{ ...styles.td, fontWeight: 600, color: colors.blue }}>{formatCurrency(stmt.totalRevenue)}</td>
+                    <td style={{ ...styles.td, fontWeight: 700, color: colors.green }}>{formatCurrency(stmt.totalPay)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          ))
+        )}
+      </>
+    );
+  };
+
   // ============ SETTINGS VIEW (UPDATED FOR INDEXEDDB) ============
   const renderSettings = () => (
     <>
@@ -4499,6 +4767,7 @@ export default function App() {
         {activeTab === 'loads' && renderLoads()}
         {activeTab === 'fuel' && renderFuel()}
         {activeTab === 'drivers' && renderDrivers()}
+        {activeTab === 'driverpay' && renderDriverPay()}
         {activeTab === 'trucks' && renderTrucks()}
         {activeTab === 'ifta' && renderIFTA()}
         {activeTab === 'expenses' && renderExpenses()}
