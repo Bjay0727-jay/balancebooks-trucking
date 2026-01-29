@@ -112,15 +112,15 @@ const darkTheme = {
   shadowLg: '0 10px 15px rgba(0,0,0,0.5)',
 };
 
-// Font sizes - smaller for cleaner look
+// Font sizes - LARGER for better readability
 const fonts = {
-  xs: '10px',
-  sm: '11px',
-  base: '13px',
-  md: '14px',
-  lg: '15px',
-  xl: '18px',
-  xxl: '22px',
+  xs: '12px',
+  sm: '13px',
+  base: '15px',
+  md: '16px',
+  lg: '18px',
+  xl: '22px',
+  xxl: '28px',
 };
 
 // Spacing and radius
@@ -810,7 +810,7 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(() => {
     // Load saved preference from localStorage
     const saved = localStorage.getItem('bbt_dark_mode');
-    return saved ? JSON.parse(saved) : false; // Default to light mode
+    return saved !== null ? JSON.parse(saved) : true; // Default to dark mode
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
@@ -2683,15 +2683,15 @@ export default function App() {
               return (
                 <div key={status} onClick={() => { setLoadStatusFilter(status); setActiveTab('loads'); }} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '8px 10px', borderRadius: radius.sm, background: theme.inputBg, cursor: 'pointer',
+                  padding: '10px 12px', borderRadius: radius.sm, background: theme.inputBg, cursor: 'pointer',
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <StatusDot color={config.color} />
-                    <span style={{ fontSize: fonts.sm, color: theme.text, fontWeight: 500 }}>{config.label}</span>
-                  </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <StatusDot color={config.color} />
+                    <span style={{ fontSize: fonts.base, color: theme.text, fontWeight: 500 }}>{config.label}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                     <span style={{ fontSize: fonts.sm, color: theme.textMuted }}>{formatCurrency(revenue)}</span>
-                    <span style={{ fontSize: fonts.sm, fontWeight: 700, color: config.color, minWidth: 16, textAlign: 'right' }}>{count}</span>
+                    <span style={{ fontSize: fonts.base, fontWeight: 700, color: config.color, minWidth: 20, textAlign: 'right' }}>{count}</span>
                   </div>
                 </div>
               );
@@ -2728,11 +2728,8 @@ export default function App() {
 
         {/* Monthly Goals */}
         <div style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: radius.lg, padding: '16px', boxShadow: theme.shadow }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ marginBottom: 12 }}>
             <span style={{ fontSize: fonts.lg, fontWeight: 600, color: theme.text }}>Monthly Goals</span>
-            <span style={{ fontSize: fonts.xs, color: revenueProgress >= 80 ? theme.success : theme.warning, fontWeight: 600 }}>
-              {revenueProgress >= 100 ? '🎉 Complete!' : revenueProgress >= 80 ? 'On Track 🎯' : 'Keep Going 💪'}
-            </span>
           </div>
           <div style={{ marginBottom: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -6026,11 +6023,6 @@ export default function App() {
   }
 
   // ============ MAIN RENDER ============
-  // Navigation items with keyboard shortcuts
-  const navItemsWithShortcuts = navItems.map((item, i) => ({
-    ...item,
-    shortcut: ['D', 'C', 'L', 'F', 'R', 'P', 'T', 'I', 'E', 'M', 'S'][i] || ''
-  }));
 
   return (
     <div style={styles.app}>
@@ -6055,22 +6047,19 @@ export default function App() {
           {sidebarCollapsed ? '→' : '← Collapse'}
         </button>
         
-        {/* Navigation */}
+        {/* Navigation - No keyboard shortcuts */}
         <nav style={styles.nav}>
-          {navItemsWithShortcuts.map(item => (
+          {navItems.map(item => (
             <button
               key={item.id}
               style={styles.navItem(activeTab === item.id, sidebarCollapsed)}
               onClick={() => setActiveTab(item.id)}
-              title={sidebarCollapsed ? `${item.label} (${item.shortcut})` : ''}
+              title={sidebarCollapsed ? item.label : ''}
             >
               <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 14 }}>{item.icon}</span>
+                <span style={{ fontSize: 16 }}>{item.icon}</span>
                 {!sidebarCollapsed && item.label}
               </span>
-              {!sidebarCollapsed && item.shortcut && (
-                <span style={styles.navShortcut}>{item.shortcut}</span>
-              )}
             </button>
           ))}
         </nav>
@@ -6103,7 +6092,7 @@ export default function App() {
             <div style={styles.searchContainer}>
               <input
                 type="text"
-                placeholder="Search... (⌘K)"
+                placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={styles.searchInput}
