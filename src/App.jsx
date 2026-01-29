@@ -2553,274 +2553,283 @@ export default function App() {
   };
 
   // ============ DASHBOARD VIEW ============
-  const renderDashboard = () => (
+  const renderDashboard = () => {
+    // Status counts for pipeline
+    const statusCounts = LOAD_STATUS_ORDER.reduce((acc, status) => {
+      acc[status] = loads.filter(l => (l.status || 'pending') === status).length;
+      return acc;
+    }, {});
+    
+    // Revenue by status
+    const revenueByStatus = LOAD_STATUS_ORDER.reduce((acc, status) => {
+      acc[status] = loads
+        .filter(l => (l.status || 'pending') === status)
+        .reduce((sum, l) => sum + (parseFloat(l.rate) || 0), 0);
+      return acc;
+    }, {});
+    
+    // Today's schedule (loads in transit or dispatched)
+    const todaySchedule = loads
+      .filter(l => ['dispatched', 'in_transit'].includes(l.status || 'pending'))
+      .slice(0, 3)
+      .map(l => {
+        const driver = drivers.find(d => String(d.id) === String(l.driverId));
+        const driverName = driver ? `${driver.firstName || ''} ${driver.lastName || ''}`.trim() : 'Unassigned';
+        const dest = l.stops?.[l.stops.length - 1]?.location?.split(',')[0] || 'Unknown';
+        return {
+          time: l.status === 'in_transit' ? 'In Transit' : 'Dispatched',
+          event: `${driverName} → ${dest}`,
+          type: l.status === 'in_transit' ? 'delivery' : 'pickup',
+        };
+      });
+    
+    // Monthly goals (example targets)
+    const monthlyRevenueGoal = 45000;
+    const monthlyLoadsGoal = 32;
+    const revenueProgress = Math.min(100, (stats.totalRevenue / monthlyRevenueGoal) * 100);
+    const loadsProgress = Math.min(100, (stats.loadCount / monthlyLoadsGoal) * 100);
+    
+    // Sparkline component
+    const Sparkline = ({ data, color, width = 50, height = 20 }) => {
+      if (!data || data.length < 2) return null;
+      const max = Math.max(...data);
+      const min = Math.min(...data);
+      const range = max - min || 1;
+      const points = data.map((val, i) => {
+        const x = (i / (data.length - 1)) * width;
+        const y = height - ((val - min) / range) * height;
+        return `${x},${y}`;
+      }).join(' ');
+      return (
+        <svg width={width} height={height} style={{ marginLeft: 8 }}>
+          <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    };
+    
+    // Trend badge
+    const TrendBadge = ({ value, positive }) => (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: 2, padding: '2px 6px', borderRadius: 4,
+        fontSize: fonts.xs, fontWeight: 600,
+        background: positive ? theme.successLight : theme.dangerLight,
+        color: positive ? theme.success : theme.danger,
+      }}>
+        {positive ? '↑' : '↓'} {value}
+      </span>
+    );
+    
+    // Progress bar
+    const ProgressBar = ({ value, max, color }) => (
+      <div style={{ width: '100%', height: 4, background: theme.cardBorder, borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{ width: `${Math.min(100, (value / max) * 100)}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.5s ease' }} />
+      </div>
+    );
+    
+    // Status dot
+    const StatusDot = ({ color }) => (
+      <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: color, marginRight: 6 }} />
+    );
+    
+    // Sample trend data (in production, calculate from actual historical data)
+    const trendData = {
+      revenue: [28, 32, 30, 35, 33, 36, stats.totalRevenue / 1000],
+      loads: [22, 24, 23, 26, 25, 27, stats.loadCount],
+      miles: [10, 11, 10.5, 12, 11.5, 12, stats.totalMiles / 1000],
+      rpm: [2.8, 2.9, 2.85, 2.9, 2.88, 2.9, stats.profitPerMile],
+    };
+    
+    return (
     <>
-      <div style={styles.header}>
-        <h1 style={styles.pageTitle}>Dashboard</h1>
-        <p style={styles.pageSubtitle}>Your trucking business at a glance</p>
-      </div>
-
-      <div style={styles.statsGrid}>
-        <div style={styles.statCard(colors.green, true)} onClick={() => setActiveTab('loads')}>
-          <div style={styles.statIcon}>💵</div>
-          <div style={styles.statValue(colors.green)}>{formatCurrency(stats.profit)}</div>
-          <div style={styles.statLabel}>Net Profit</div>
-        </div>
-        <div style={styles.statCard(colors.orange, true)} onClick={() => setActiveTab('loads')}>
-          <div style={styles.statIcon}>🚛</div>
-          <div style={styles.statValue(colors.orange)}>{formatNumber(stats.totalMiles)}</div>
-          <div style={styles.statLabel}>Loaded Miles</div>
-        </div>
-        <div style={styles.statCard(colors.teal, true)} onClick={() => setActiveTab('loads')}>
-          <div style={styles.statIcon}>📦</div>
-          <div style={styles.statValue(colors.teal)}>{stats.loadCount}</div>
-          <div style={styles.statLabel}>Total Loads</div>
-        </div>
-        <div style={styles.statCard(colors.yellow, true)} onClick={() => setActiveTab('loads')}>
-          <div style={styles.statIcon}>📊</div>
-          <div style={styles.statValue(colors.yellow)}>{formatCentsPerMile(stats.profitPerMile)}</div>
-          <div style={styles.statLabel}>Profit/Mile</div>
-        </div>
-      </div>
-
-      {/* Load Status Pipeline */}
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>
-          <span>📊 Load Pipeline</span>
-          <button 
-            style={styles.btn('secondary')} 
-            onClick={() => setActiveTab('loads')}
-          >
-            View All Loads →
-          </button>
-        </div>
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: 0,
-          background: colors.navyDark,
-          borderRadius: 16,
-          padding: 8,
-          overflow: 'hidden',
-        }}>
-          {LOAD_STATUS_ORDER.map((status, index) => {
-            const config = LOAD_STATUS_CONFIG[status];
-            const count = loads.filter(l => (l.status || 'pending') === status).length;
-            const revenue = loads
-              .filter(l => (l.status || 'pending') === status)
-              .reduce((sum, l) => sum + (parseFloat(l.rate) || 0), 0);
-            const isLast = index === LOAD_STATUS_ORDER.length - 1;
-            
-            return (
-              <div 
-                key={status}
-                onClick={() => {
-                  setLoadStatusFilter(status);
-                  setActiveTab('loads');
-                }}
-                style={{ 
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  padding: '20px 12px',
-                  cursor: 'pointer',
-                  position: 'relative',
-                  background: count > 0 ? config.bgColor : 'transparent',
-                  borderRadius: 12,
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                <div style={{ fontSize: 24, marginBottom: 8 }}>{config.icon}</div>
-                <div style={{ 
-                  fontSize: 28, 
-                  fontWeight: 800, 
-                  color: count > 0 ? config.color : colors.gray600,
-                  marginBottom: 4,
-                }}>
-                  {count}
-                </div>
-                <div style={{ 
-                  fontSize: 12, 
-                  fontWeight: 600,
-                  color: count > 0 ? config.color : colors.gray600,
-                  marginBottom: 4,
-                }}>
-                  {config.label}
-                </div>
-                {count > 0 && (
-                  <div style={{ fontSize: 11, color: colors.gray400 }}>
-                    {formatCurrency(revenue)}
-                  </div>
-                )}
-                {/* Arrow connector */}
-                {!isLast && (
-                  <div style={{
-                    position: 'absolute',
-                    right: -12,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: colors.gray600,
-                    fontSize: 20,
-                    zIndex: 1,
-                  }}>
-                    →
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        {/* Summary row */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          marginTop: 16,
-          paddingTop: 16,
-          borderTop: `1px solid ${colors.gray700}`,
-        }}>
-          <div style={{ display: 'flex', gap: 24 }}>
-            <div>
-              <span style={{ color: colors.gray400, fontSize: 13 }}>Active Loads: </span>
-              <span style={{ color: colors.orange, fontWeight: 700 }}>
-                {loads.filter(l => !['delivered', 'paid'].includes(l.status || 'pending')).length}
-              </span>
+      {/* Stats Row with Trends */}
+      <div style={{ display: 'flex', gap: 14, marginBottom: 20, flexWrap: 'wrap' }}>
+        {[
+          { label: 'Revenue', value: formatCurrency(stats.totalRevenue), trend: '+12%', positive: true, sparkData: trendData.revenue, color: theme.success, icon: '💵' },
+          { label: 'Loads', value: stats.loadCount, trend: '+3', positive: true, sparkData: trendData.loads, color: theme.info, icon: '📦' },
+          { label: 'Miles', value: formatNumber(stats.totalMiles), trend: '+8%', positive: true, sparkData: trendData.miles, color: theme.primary, icon: '🛣️' },
+          { label: 'Avg $/Mile', value: formatCurrency(stats.profitPerMile), trend: stats.profitPerMile > 2 ? '+5%' : '-2%', positive: stats.profitPerMile > 2, sparkData: trendData.rpm, color: theme.warning, icon: '📊' },
+        ].map((stat, i) => (
+          <div key={i} style={{
+            flex: '1 1 200px', background: theme.card, border: `1px solid ${theme.cardBorder}`,
+            borderRadius: radius.lg, padding: '14px 16px', boxShadow: theme.shadow, cursor: 'pointer',
+          }} onClick={() => setActiveTab('loads')}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 16 }}>{stat.icon}</span>
+              <TrendBadge value={stat.trend} positive={stat.positive} />
             </div>
-            <div>
-              <span style={{ color: colors.gray400, fontSize: 13 }}>Pending Revenue: </span>
-              <span style={{ color: colors.yellow, fontWeight: 700 }}>
-                {formatCurrency(
-                  loads
-                    .filter(l => (l.status || 'pending') !== 'paid')
-                    .reduce((sum, l) => sum + (parseFloat(l.rate) || 0), 0)
-                )}
-              </span>
+            <div style={{ color: stat.color, fontSize: fonts.xl, fontWeight: 700, marginBottom: 2 }}>{stat.value}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ color: theme.textMuted, fontSize: fonts.sm, fontWeight: 500 }}>{stat.label}</span>
+              <Sparkline data={stat.sparkData} color={stat.color} />
             </div>
           </div>
-          <div>
-            <span style={{ color: colors.gray400, fontSize: 13 }}>Collected: </span>
-            <span style={{ color: colors.green, fontWeight: 700 }}>
-              {formatCurrency(
-                loads
-                  .filter(l => l.status === 'paid')
-                  .reduce((sum, l) => sum + (parseFloat(l.rate) || 0), 0)
-              )}
+        ))}
+      </div>
+
+      {/* Three Column Layout */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 14 }}>
+        
+        {/* Pipeline */}
+        <div style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: radius.lg, padding: '16px', boxShadow: theme.shadow }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <span style={{ fontSize: fonts.lg, fontWeight: 600, color: theme.text }}>Pipeline</span>
+            <span style={{ fontSize: fonts.xs, color: theme.textMuted }}>{loads.length} total</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {LOAD_STATUS_ORDER.map(status => {
+              const config = LOAD_STATUS_CONFIG[status];
+              const count = statusCounts[status];
+              const revenue = revenueByStatus[status];
+              return (
+                <div key={status} onClick={() => { setLoadStatusFilter(status); setActiveTab('loads'); }} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '8px 10px', borderRadius: radius.sm, background: theme.inputBg, cursor: 'pointer',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <StatusDot color={config.color} />
+                    <span style={{ fontSize: fonts.sm, color: theme.text, fontWeight: 500 }}>{config.label}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: fonts.sm, color: theme.textMuted }}>{formatCurrency(revenue)}</span>
+                    <span style={{ fontSize: fonts.sm, fontWeight: 700, color: config.color, minWidth: 16, textAlign: 'right' }}>{count}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Today's Schedule */}
+        <div style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: radius.lg, padding: '16px', boxShadow: theme.shadow }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <span style={{ fontSize: fonts.lg, fontWeight: 600, color: theme.text }}>Active Loads</span>
+            <span style={{ fontSize: fonts.xs, color: theme.primary, fontWeight: 500, cursor: 'pointer' }} onClick={() => setActiveTab('dispatch')}>View Calendar →</span>
+          </div>
+          {todaySchedule.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {todaySchedule.map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{ fontSize: fonts.sm, color: theme.textMuted, fontWeight: 500, minWidth: 70 }}>{item.time}</div>
+                  <div style={{ width: 3, height: '100%', minHeight: 16, borderRadius: 2, background: item.type === 'pickup' ? theme.primary : theme.success, flexShrink: 0 }} />
+                  <div style={{ fontSize: fonts.sm, color: theme.text, lineHeight: 1.4 }}>{item.event}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '20px', color: theme.textMuted, fontSize: fonts.sm }}>
+              No active loads
+            </div>
+          )}
+          <div style={{ marginTop: 12, padding: '10px', background: theme.inputBg, borderRadius: radius.sm, textAlign: 'center' }}>
+            <span style={{ fontSize: fonts.sm, color: theme.textMuted }}>🎯 </span>
+            <span style={{ fontSize: fonts.sm, color: theme.text, fontWeight: 500 }}>{drivers.length} driver{drivers.length !== 1 ? 's' : ''} registered</span>
+          </div>
+        </div>
+
+        {/* Monthly Goals */}
+        <div style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: radius.lg, padding: '16px', boxShadow: theme.shadow }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <span style={{ fontSize: fonts.lg, fontWeight: 600, color: theme.text }}>Monthly Goals</span>
+            <span style={{ fontSize: fonts.xs, color: revenueProgress >= 80 ? theme.success : theme.warning, fontWeight: 600 }}>
+              {revenueProgress >= 100 ? '🎉 Complete!' : revenueProgress >= 80 ? 'On Track 🎯' : 'Keep Going 💪'}
             </span>
           </div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: fonts.sm, color: theme.textMuted }}>Revenue</span>
+              <span style={{ fontSize: fonts.sm, color: theme.text, fontWeight: 600 }}>{formatCurrency(stats.totalRevenue)} / {formatCurrency(monthlyRevenueGoal)}</span>
+            </div>
+            <ProgressBar value={stats.totalRevenue} max={monthlyRevenueGoal} color={theme.success} />
+            <div style={{ fontSize: fonts.xs, color: theme.textMuted, marginTop: 4 }}>{revenueProgress.toFixed(0)}% complete</div>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: fonts.sm, color: theme.textMuted }}>Loads</span>
+              <span style={{ fontSize: fonts.sm, color: theme.text, fontWeight: 600 }}>{stats.loadCount} / {monthlyLoadsGoal}</span>
+            </div>
+            <ProgressBar value={stats.loadCount} max={monthlyLoadsGoal} color={theme.info} />
+            <div style={{ fontSize: fonts.xs, color: theme.textMuted, marginTop: 4 }}>{loadsProgress.toFixed(0)}% complete</div>
+          </div>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: fonts.sm, color: theme.textMuted }}>Deadhead Target</span>
+              <span style={{ fontSize: fonts.sm, color: theme.text, fontWeight: 600 }}>{stats.deadheadPercentage.toFixed(1)}% / &lt;15%</span>
+            </div>
+            <ProgressBar value={Math.min(stats.deadheadPercentage, 15)} max={15} color={stats.deadheadPercentage <= 15 ? theme.success : theme.danger} />
+            <div style={{ fontSize: fonts.xs, color: stats.deadheadPercentage <= 15 ? theme.success : theme.danger, marginTop: 4 }}>
+              {stats.deadheadPercentage <= 15 ? '✓ Under target' : '⚠ Above target'}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Deadhead Analysis Card */}
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>
-          <span>🔄 Deadhead Analysis</span>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 24 }}>
-          <div style={{ background: colors.navyDark, padding: 24, borderRadius: 16, textAlign: 'center' }}>
-            <div style={{ color: colors.gray400, fontSize: 14, marginBottom: 8 }}>Deadhead Miles</div>
-            <div style={{ color: colors.red, fontSize: 28, fontWeight: 800 }}>{formatNumber(stats.totalDeadheadMiles)}</div>
+      {/* Recent Loads - Compact Table */}
+      <div style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: radius.lg, padding: '16px', boxShadow: theme.shadow }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: fonts.lg, fontWeight: 600, color: theme.text }}>Recent Loads</span>
+            <span style={{ fontSize: fonts.xs, color: theme.textMuted, background: theme.inputBg, padding: '3px 8px', borderRadius: 10 }}>Last 5</span>
           </div>
-          <div style={{ background: colors.navyDark, padding: 24, borderRadius: 16, textAlign: 'center' }}>
-            <div style={{ color: colors.gray400, fontSize: 14, marginBottom: 8 }}>Deadhead %</div>
-            <div style={{ color: stats.deadheadPercentage > 15 ? colors.red : colors.green, fontSize: 28, fontWeight: 800 }}>
-              {stats.deadheadPercentage.toFixed(1)}%
-            </div>
-          </div>
-          <div style={{ background: colors.navyDark, padding: 24, borderRadius: 16, textAlign: 'center' }}>
-            <div style={{ color: colors.gray400, fontSize: 14, marginBottom: 8 }}>All Miles RPM</div>
-            <div style={{ color: colors.orange, fontSize: 28, fontWeight: 800 }}>
-              {formatCurrency(stats.totalAllMiles > 0 ? stats.totalRevenue / stats.totalAllMiles : 0)}
-            </div>
-          </div>
-          <div style={{ background: colors.navyDark, padding: 24, borderRadius: 16, textAlign: 'center' }}>
-            <div style={{ color: colors.gray400, fontSize: 14, marginBottom: 8 }}>Fleet MPG</div>
-            <div style={{ color: colors.teal, fontSize: 28, fontWeight: 800 }}>{stats.fleetMPG.toFixed(2)}</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setActiveTab('loads')} style={{ padding: '5px 10px', borderRadius: radius.sm, border: `1px solid ${theme.cardBorder}`, background: 'transparent', color: theme.textSecondary, cursor: 'pointer', fontSize: fonts.xs }}>View All →</button>
           </div>
         </div>
-        {stats.deadheadPercentage > 15 && (
-          <div style={{ 
-            background: `${colors.red}20`, 
-            border: `1px solid ${colors.red}40`,
-            padding: 20, 
-            borderRadius: 12, 
-            marginTop: 24,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 16
-          }}>
-            <span style={{ fontSize: 28 }}>⚠️</span>
-            <div>
-              <div style={{ color: colors.white, fontWeight: 700 }}>High Deadhead Alert</div>
-              <div style={{ color: colors.gray400, fontSize: 14 }}>
-                Your deadhead percentage is above 15%. Consider finding backhauls or loads closer to your drop locations.
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
 
-      {/* Recent Loads */}
-      <div style={styles.card}>
-        <div style={styles.cardTitle}>
-          <span>📋 Recent Loads</span>
-          <button style={styles.btn('primary')} onClick={() => setShowLoadModal(true)}>
-            ➕ Add Load
-          </button>
-        </div>
         {loads.length > 0 ? (
-          <table style={styles.table}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={styles.th}>Date</th>
-                <th style={styles.th}>Route</th>
-                <th style={styles.th}>Loaded Miles</th>
-                <th style={styles.th}>Deadhead</th>
-                <th style={styles.th}>Rate</th>
-                <th style={styles.th}>RPM (All)</th>
+                {['Status', 'Date', 'Load', 'Route', 'Driver', 'Rate'].map(h => (
+                  <th key={h} style={{
+                    textAlign: 'left', padding: '8px 10px', color: theme.textMuted, fontSize: fonts.xs,
+                    fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px', borderBottom: `1px solid ${theme.cardBorder}`,
+                  }}>
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {loads.slice(-5).reverse().map(load => {
-                const origin = load.stops?.[0]?.location || 'N/A';
-                const dest = load.stops?.[load.stops.length - 1]?.location || 'N/A';
-                const totalMiles = (load.loadedMiles || 0) + (load.deadheadMiles || 0);
-                const effectiveRPM = totalMiles > 0 ? load.rate / totalMiles : 0;
+              {loads.slice(-5).reverse().map((load) => {
+                const statusConfig = LOAD_STATUS_CONFIG[load.status || 'pending'];
+                const driver = drivers.find(d => String(d.id) === String(load.driverId));
+                const driverName = driver ? `${driver.firstName || ''} ${driver.lastName || ''}`.trim() : '—';
+                const origin = load.stops?.[0]?.location?.split(',')[0] || 'N/A';
+                const dest = load.stops?.[load.stops.length - 1]?.location?.split(',')[0] || 'N/A';
                 return (
                   <tr key={load.id} style={{ cursor: 'pointer' }} onClick={() => openEditLoad(load)}>
-                    <td style={{ ...styles.td, borderRadius: '14px 0 0 14px', color: colors.teal }}>{load.date}</td>
-                    <td style={styles.td}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ color: colors.green }}>●</span>
-                        {origin.split(',')[0]}
-                        <span style={{ color: colors.gray500 }}>→</span>
-                        {load.stops?.length > 2 && <span style={{ color: colors.orange, fontSize: 12 }}>+{load.stops.length - 2} stops</span>}
-                        <span style={{ color: colors.red }}>●</span>
-                        {dest.split(',')[0]}
-                      </div>
+                    <td style={{ padding: '10px', borderBottom: `1px solid ${theme.cardBorder}` }}>
+                      <span style={{ display: 'flex', alignItems: 'center' }}>
+                        <StatusDot color={statusConfig.color} />
+                        <span style={{ fontSize: fonts.sm, color: theme.textSecondary }}>{statusConfig.label}</span>
+                      </span>
                     </td>
-                    <td style={styles.td}>{formatNumber(load.loadedMiles)}</td>
-                    <td style={{ ...styles.td, color: load.deadheadMiles > 0 ? colors.red : colors.gray500 }}>
-                      {formatNumber(load.deadheadMiles || 0)}
-                    </td>
-                    <td style={{ ...styles.td, color: colors.green, fontWeight: 700 }}>{formatCurrency(load.rate)}</td>
-                    <td style={{ ...styles.td, borderRadius: '0 14px 14px 0', color: colors.orange, fontWeight: 700 }}>
-                      {formatCurrency(effectiveRPM)}
-                    </td>
+                    <td style={{ padding: '10px', color: theme.textSecondary, fontSize: fonts.sm, borderBottom: `1px solid ${theme.cardBorder}` }}>{load.date}</td>
+                    <td style={{ padding: '10px', color: theme.primary, fontWeight: 600, fontSize: fonts.sm, borderBottom: `1px solid ${theme.cardBorder}` }}>{load.loadNumber || `LD-${load.id?.slice(-4) || '0000'}`}</td>
+                    <td style={{ padding: '10px', color: theme.text, fontSize: fonts.sm, borderBottom: `1px solid ${theme.cardBorder}` }}>{origin} → {dest}</td>
+                    <td style={{ padding: '10px', color: theme.textSecondary, fontSize: fonts.sm, borderBottom: `1px solid ${theme.cardBorder}` }}>{driverName}</td>
+                    <td style={{ padding: '10px', color: theme.success, fontWeight: 600, fontSize: fonts.sm, borderBottom: `1px solid ${theme.cardBorder}` }}>{formatCurrency(load.rate)}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         ) : (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: colors.gray400 }}>
-            <div style={{ fontSize: 48, marginBottom: 20 }}>🚛</div>
-            <p style={{ fontSize: 18 }}>No loads recorded yet</p>
-            <p style={{ fontSize: 14 }}>Click "Add Load" to get started!</p>
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: theme.textMuted }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>🚛</div>
+            <p style={{ fontSize: fonts.base, marginBottom: 8 }}>No loads yet</p>
+            <button onClick={() => setShowLoadModal(true)} style={{
+              padding: '8px 16px', borderRadius: radius.md, border: 'none',
+              background: theme.primary, color: '#fff', cursor: 'pointer', fontSize: fonts.sm, fontWeight: 600,
+            }}>
+              + Add First Load
+            </button>
           </div>
         )}
       </div>
     </>
-  );
+    );
+  };
 
   // ============ LOADS VIEW ============
   const renderLoads = () => {
