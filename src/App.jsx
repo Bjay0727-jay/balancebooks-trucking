@@ -74,6 +74,25 @@ const PAY_TYPES = {
   FLAT_RATE: 'flat_rate'
 };
 
+// ============ LOAD STATUSES ============
+const LOAD_STATUSES = {
+  PENDING: 'pending',
+  DISPATCHED: 'dispatched',
+  IN_TRANSIT: 'in_transit',
+  DELIVERED: 'delivered',
+  PAID: 'paid'
+};
+
+const LOAD_STATUS_CONFIG = {
+  pending: { label: 'Pending', icon: '⏳', color: '#94a3b8', bgColor: '#94a3b820' },
+  dispatched: { label: 'Dispatched', icon: '📋', color: '#3b82f6', bgColor: '#3b82f620' },
+  in_transit: { label: 'In Transit', icon: '🚛', color: '#f97316', bgColor: '#f9731620' },
+  delivered: { label: 'Delivered', icon: '📦', color: '#14b8a6', bgColor: '#14b8a620' },
+  paid: { label: 'Paid', icon: '✅', color: '#22c55e', bgColor: '#22c55e20' }
+};
+
+const LOAD_STATUS_ORDER = ['pending', 'dispatched', 'in_transit', 'delivered', 'paid'];
+
 // Format pay rate for display
 const formatPayRate = (payType, payRate) => {
   const rate = parseFloat(payRate) || 0;
@@ -780,6 +799,9 @@ export default function App() {
   const [dispatchDate, setDispatchDate] = useState(new Date());
   const [selectedDispatchLoad, setSelectedDispatchLoad] = useState(null);
   const [dispatchViewMode, setDispatchViewMode] = useState('month'); // 'month', 'week', 'list'
+  
+  // Load status filter
+  const [loadStatusFilter, setLoadStatusFilter] = useState('all'); // 'all' or specific status
 
   // ============ DATA STATE - Now loaded from IndexedDB ============
   const [fuelEntries, setFuelEntries] = useState([]);
@@ -1327,6 +1349,7 @@ export default function App() {
       broker: '',
       rate: '',
       driverId: '',
+      status: 'pending',
       stops: [
         { type: 'origin', location: '', city: '', state: '', lat: null, lng: null },
         { type: 'destination', location: '', city: '', state: '', lat: null, lng: null },
@@ -1525,6 +1548,40 @@ export default function App() {
               <div style={styles.formGroup}>
                 <label style={styles.label}>Rate ($)</label>
                 <input type="number" step="0.01" value={form.rate} onChange={e => setForm({...form, rate: e.target.value})} placeholder="0.00" style={styles.input} required />
+              </div>
+            </div>
+
+            {/* Load Status */}
+            <div style={{ marginBottom: 28 }}>
+              <label style={styles.label}>Load Status</label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {LOAD_STATUS_ORDER.map(status => {
+                  const config = LOAD_STATUS_CONFIG[status];
+                  const isSelected = (form.status || 'pending') === status;
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setForm({...form, status})}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '10px 16px',
+                        borderRadius: 10,
+                        border: isSelected ? `2px solid ${config.color}` : `1px solid ${colors.gray700}`,
+                        background: isSelected ? config.bgColor : colors.gray800,
+                        color: isSelected ? config.color : colors.gray400,
+                        cursor: 'pointer',
+                        fontWeight: isSelected ? 600 : 400,
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <span>{config.icon}</span>
+                      <span>{config.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -2590,6 +2647,57 @@ export default function App() {
       return drivers.find(d => d.id === load.driverId) || null;
     };
     
+    // Filter loads by status
+    const filteredLoads = loadStatusFilter === 'all' 
+      ? loads 
+      : loads.filter(l => (l.status || 'pending') === loadStatusFilter);
+    
+    // Count loads by status
+    const statusCounts = LOAD_STATUS_ORDER.reduce((acc, status) => {
+      acc[status] = loads.filter(l => (l.status || 'pending') === status).length;
+      return acc;
+    }, {});
+    
+    // Quick status update function
+    const updateLoadStatus = (loadId, newStatus) => {
+      setLoads(loads.map(l => 
+        l.id === loadId 
+          ? { ...l, status: newStatus, statusUpdatedAt: new Date().toISOString() }
+          : l
+      ));
+    };
+    
+    // Get next status in workflow
+    const getNextStatus = (currentStatus) => {
+      const currentIndex = LOAD_STATUS_ORDER.indexOf(currentStatus || 'pending');
+      if (currentIndex < LOAD_STATUS_ORDER.length - 1) {
+        return LOAD_STATUS_ORDER[currentIndex + 1];
+      }
+      return null;
+    };
+    
+    // Status Badge Component
+    const StatusBadge = ({ status, size = 'normal' }) => {
+      const config = LOAD_STATUS_CONFIG[status || 'pending'];
+      return (
+        <span style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: size === 'small' ? 4 : 6,
+          padding: size === 'small' ? '2px 8px' : '4px 12px',
+          background: config.bgColor,
+          color: config.color,
+          borderRadius: 20,
+          fontSize: size === 'small' ? 11 : 13,
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
+        }}>
+          <span>{config.icon}</span>
+          <span>{config.label}</span>
+        </span>
+      );
+    };
+    
     return (
     <>
       <div style={styles.header}>
@@ -2597,39 +2705,127 @@ export default function App() {
         <p style={styles.pageSubtitle}>Track your hauling revenue and routes</p>
       </div>
 
+      {/* Status Summary Cards */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(5, 1fr)', 
+        gap: 16, 
+        marginBottom: 32 
+      }}>
+        {LOAD_STATUS_ORDER.map(status => {
+          const config = LOAD_STATUS_CONFIG[status];
+          const count = statusCounts[status];
+          const isSelected = loadStatusFilter === status;
+          return (
+            <div
+              key={status}
+              onClick={() => setLoadStatusFilter(isSelected ? 'all' : status)}
+              style={{
+                background: isSelected ? config.bgColor : colors.gray800,
+                border: isSelected ? `2px solid ${config.color}` : `1px solid ${colors.gray700}`,
+                borderRadius: 16,
+                padding: '20px 16px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                textAlign: 'center',
+              }}
+            >
+              <div style={{ fontSize: 28, marginBottom: 8 }}>{config.icon}</div>
+              <div style={{ 
+                fontSize: 28, 
+                fontWeight: 800, 
+                color: isSelected ? config.color : colors.white,
+                marginBottom: 4,
+              }}>
+                {count}
+              </div>
+              <div style={{ fontSize: 13, color: isSelected ? config.color : colors.gray400 }}>
+                {config.label}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
       <div style={styles.card}>
         <div style={styles.cardTitle}>
-          <span>🚛 All Loads</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <span>🚛 {loadStatusFilter === 'all' ? 'All Loads' : LOAD_STATUS_CONFIG[loadStatusFilter]?.label + ' Loads'}</span>
+            {loadStatusFilter !== 'all' && (
+              <button 
+                onClick={() => setLoadStatusFilter('all')}
+                style={{
+                  background: colors.gray700,
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '6px 12px',
+                  color: colors.gray300,
+                  cursor: 'pointer',
+                  fontSize: 13,
+                }}
+              >
+                ✕ Clear Filter
+              </button>
+            )}
+          </div>
           <button style={styles.btn('primary')} onClick={() => setShowLoadModal(true)}>
             ➕ Add Load
           </button>
         </div>
         
-        {loads.length > 0 ? (
+        {filteredLoads.length > 0 ? (
           <table style={styles.table}>
             <thead>
               <tr>
+                <th style={styles.th}>Status</th>
                 <th style={styles.th}>Date</th>
                 <th style={styles.th}>Load #</th>
                 <th style={styles.th}>Route</th>
                 <th style={styles.th}>Driver</th>
-                <th style={styles.th}>Miles</th>
                 <th style={styles.th}>Rate</th>
-                <th style={styles.th}>Driver Pay</th>
                 <th style={styles.th}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {[...loads].reverse().map(load => {
+              {[...filteredLoads].reverse().map(load => {
                 const origin = load.stops?.[0]?.location || 'N/A';
                 const dest = load.stops?.[load.stops.length - 1]?.location || 'N/A';
                 const driver = getLoadDriver(load);
-                const driverPay = driver ? calculateDriverPay(load, driver) : 0;
-                const totalMiles = (parseInt(load.loadedMiles) || 0) + (parseInt(load.deadheadMiles) || 0);
+                const currentStatus = load.status || 'pending';
+                const nextStatus = getNextStatus(currentStatus);
+                const nextConfig = nextStatus ? LOAD_STATUS_CONFIG[nextStatus] : null;
+                
                 return (
                   <tr key={load.id}>
+                    <td style={{ ...styles.td, borderRadius: '14px 0 0 14px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <StatusBadge status={currentStatus} />
+                        {nextStatus && (
+                          <button
+                            onClick={() => updateLoadStatus(load.id, nextStatus)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 4,
+                              padding: '4px 8px',
+                              background: 'transparent',
+                              border: `1px dashed ${nextConfig.color}`,
+                              borderRadius: 8,
+                              color: nextConfig.color,
+                              cursor: 'pointer',
+                              fontSize: 11,
+                              fontWeight: 500,
+                            }}
+                            title={`Move to ${nextConfig.label}`}
+                          >
+                            → {nextConfig.icon} {nextConfig.label}
+                          </button>
+                        )}
+                      </div>
+                    </td>
                     <td 
-                      style={{ ...styles.tdClickable, borderRadius: '14px 0 0 14px', color: colors.teal, fontWeight: 600 }}
+                      style={{ ...styles.tdClickable, color: colors.teal, fontWeight: 600 }}
                       onClick={() => openEditLoad(load)}
                     >
                       {load.date}
@@ -2656,11 +2852,7 @@ export default function App() {
                         <span style={{ color: colors.gray500, fontSize: 13 }}>-</span>
                       )}
                     </td>
-                    <td style={styles.td}>{formatNumber(totalMiles)} mi</td>
                     <td style={{ ...styles.td, color: colors.green, fontWeight: 700 }}>{formatCurrency(load.rate || 0)}</td>
-                    <td style={{ ...styles.td, color: driverPay > 0 ? colors.orange : colors.gray500, fontWeight: 600 }}>
-                      {driverPay > 0 ? formatCurrency(driverPay) : '-'}
-                    </td>
                     <td style={{ ...styles.td, borderRadius: '0 14px 14px 0' }}>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button 
@@ -2685,11 +2877,23 @@ export default function App() {
         ) : (
           <div style={{ textAlign: 'center', padding: '80px 20px', color: colors.gray400 }}>
             <div style={{ fontSize: 64, marginBottom: 24 }}>🚛</div>
-            <p style={{ fontSize: 20, marginBottom: 8 }}>No loads recorded yet</p>
-            <p style={{ fontSize: 14, marginBottom: 24 }}>Start tracking your hauling revenue</p>
-            <button style={styles.btn('primary')} onClick={() => setShowLoadModal(true)}>
-              ➕ Add Your First Load
-            </button>
+            {loadStatusFilter !== 'all' ? (
+              <>
+                <p style={{ fontSize: 20, marginBottom: 8 }}>No {LOAD_STATUS_CONFIG[loadStatusFilter]?.label.toLowerCase()} loads</p>
+                <p style={{ fontSize: 14, marginBottom: 24 }}>Change filter or add a new load</p>
+                <button style={styles.btn('secondary')} onClick={() => setLoadStatusFilter('all')}>
+                  Show All Loads
+                </button>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: 20, marginBottom: 8 }}>No loads recorded yet</p>
+                <p style={{ fontSize: 14, marginBottom: 24 }}>Start tracking your hauling revenue</p>
+                <button style={styles.btn('primary')} onClick={() => setShowLoadModal(true)}>
+                  ➕ Add Your First Load
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -4660,6 +4864,7 @@ export default function App() {
                   .map(load => {
                     const brokerColor = brokerColors[load.broker || 'Unknown'];
                     const driverName = getDriverName(load.driverId);
+                    const statusConfig = LOAD_STATUS_CONFIG[load.status || 'pending'];
                     return (
                       <div
                         key={load.id}
@@ -4673,16 +4878,33 @@ export default function App() {
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                          <div>
-                            <div style={{ color: colors.white, fontWeight: 700, fontSize: 16 }}>
-                              {load.loadNumber || 'Load'}
-                            </div>
-                            <div style={{ color: brokerColor, fontSize: 13, fontWeight: 600 }}>
-                              {load.broker || 'Unknown Broker'}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div>
+                              <div style={{ color: colors.white, fontWeight: 700, fontSize: 16 }}>
+                                {load.loadNumber || 'Load'}
+                              </div>
+                              <div style={{ color: brokerColor, fontSize: 13, fontWeight: 600 }}>
+                                {load.broker || 'Unknown Broker'}
+                              </div>
                             </div>
                           </div>
-                          <div style={{ color: colors.green, fontWeight: 700, fontSize: 18 }}>
-                            {formatCurrency(load.rate)}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              padding: '4px 10px',
+                              background: statusConfig.bgColor,
+                              color: statusConfig.color,
+                              borderRadius: 16,
+                              fontSize: 12,
+                              fontWeight: 600,
+                            }}>
+                              {statusConfig.icon} {statusConfig.label}
+                            </span>
+                            <div style={{ color: colors.green, fontWeight: 700, fontSize: 18 }}>
+                              {formatCurrency(load.rate)}
+                            </div>
                           </div>
                         </div>
                         <div style={{ color: colors.gray400, fontSize: 13, marginBottom: 8 }}>
@@ -4782,6 +5004,66 @@ export default function App() {
               </div>
 
               <div style={{ display: 'grid', gap: 20 }}>
+                {/* Status */}
+                {(() => {
+                  const status = selectedLoad.status || 'pending';
+                  const config = LOAD_STATUS_CONFIG[status];
+                  const nextStatus = (() => {
+                    const currentIndex = LOAD_STATUS_ORDER.indexOf(status);
+                    return currentIndex < LOAD_STATUS_ORDER.length - 1 ? LOAD_STATUS_ORDER[currentIndex + 1] : null;
+                  })();
+                  const nextConfig = nextStatus ? LOAD_STATUS_CONFIG[nextStatus] : null;
+                  
+                  return (
+                    <div style={{ background: colors.navyDark, padding: 16, borderRadius: 12 }}>
+                      <div style={{ color: colors.gray400, fontSize: 12, marginBottom: 8, fontWeight: 600 }}>STATUS</div>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '8px 16px',
+                          background: config.bgColor,
+                          color: config.color,
+                          borderRadius: 20,
+                          fontSize: 15,
+                          fontWeight: 600,
+                        }}>
+                          <span style={{ fontSize: 18 }}>{config.icon}</span>
+                          <span>{config.label}</span>
+                        </span>
+                        {nextStatus && (
+                          <button
+                            onClick={() => {
+                              setLoads(loads.map(l => 
+                                l.id === selectedLoad.id 
+                                  ? { ...l, status: nextStatus, statusUpdatedAt: new Date().toISOString() }
+                                  : l
+                              ));
+                              setSelectedLoad({ ...selectedLoad, status: nextStatus });
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              padding: '8px 14px',
+                              background: nextConfig.bgColor,
+                              border: `1px solid ${nextConfig.color}`,
+                              borderRadius: 10,
+                              color: nextConfig.color,
+                              cursor: 'pointer',
+                              fontWeight: 600,
+                              fontSize: 13,
+                            }}
+                          >
+                            → {nextConfig.icon} {nextConfig.label}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Route */}
                 <div style={{ background: colors.navyDark, padding: 20, borderRadius: 12 }}>
                   <div style={{ color: colors.gray400, fontSize: 12, marginBottom: 8, fontWeight: 600 }}>ROUTE</div>
