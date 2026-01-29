@@ -176,9 +176,9 @@ const createStyles = (theme) => ({
   logoContainer: (collapsed) => ({
     display: 'flex',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
     marginBottom: 24,
-    padding: '8px',
+    padding: '10px 8px',
     justifyContent: collapsed ? 'center' : 'flex-start',
   }),
   logoIcon: {
@@ -193,8 +193,8 @@ const createStyles = (theme) => ({
     flexShrink: 0,
     boxShadow: '0 2px 8px rgba(249,115,22,0.3)',
   },
-  logoText: { color: theme.navText, fontWeight: 700, fontSize: fonts.lg },
-  logoSubtext: { color: theme.primary, fontSize: fonts.sm, fontWeight: 600 },
+  logoText: { color: theme.navText, fontWeight: 700, fontSize: fonts.lg, lineHeight: 1.2 },
+  logoSubtext: { color: theme.primary, fontSize: fonts.sm, fontWeight: 600, lineHeight: 1.2, marginTop: 2 },
   collapseBtn: {
     background: theme.navHover,
     border: 'none',
@@ -6053,7 +6053,7 @@ export default function App() {
             <path d="M 36 52 L 46 62 L 66 42" fill="none" stroke="white" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           {!sidebarCollapsed && (
-            <div>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
               <div style={styles.logoText}>BalanceBooks</div>
               <div style={styles.logoSubtext}>Trucking Pro</div>
             </div>
