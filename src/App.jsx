@@ -775,6 +775,10 @@ export default function App() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [showFuelImport, setShowFuelImport] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
+  
+  // Dispatch Board state
+  const [dispatchDate, setDispatchDate] = useState(new Date());
+  const [selectedDispatchLoad, setSelectedDispatchLoad] = useState(null);
 
   // ============ DATA STATE - Now loaded from IndexedDB ============
   const [fuelEntries, setFuelEntries] = useState([]);
@@ -1294,6 +1298,7 @@ export default function App() {
   // ============ NAV ITEMS ============
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
+    { id: 'dispatch', label: 'Dispatch Board', icon: '🗓️' },
     { id: 'loads', label: 'Loads', icon: '🚛' },
     { id: 'fuel', label: 'Fuel Log', icon: '⛽' },
     { id: 'drivers', label: 'Drivers', icon: '👤' },
@@ -4215,6 +4220,447 @@ export default function App() {
     );
   };
 
+  // ============ DISPATCH BOARD VIEW ============
+  const renderDispatch = () => {
+    // Use component-level state: dispatchDate, selectedDispatchLoad
+    const currentDate = dispatchDate;
+    const setCurrentDate = setDispatchDate;
+    const selectedLoad = selectedDispatchLoad;
+    const setSelectedLoad = setSelectedDispatchLoad;
+    
+    // Get the first and last day of the current month view
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const firstDayOfMonth = new Date(year, month, 1);
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    const daysInMonth = lastDayOfMonth.getDate();
+    const startingDayOfWeek = firstDayOfMonth.getDay();
+    
+    // Calendar navigation
+    const goToPrevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+    const goToNextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+    const goToToday = () => setCurrentDate(new Date());
+    
+    // Filter loads for this month
+    const monthStart = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+    const monthEnd = `${year}-${String(month + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
+    
+    const monthLoads = loads.filter(load => {
+      const loadDate = load.date;
+      const deliveryDate = load.deliveryDate || load.date;
+      return (loadDate >= monthStart && loadDate <= monthEnd) || 
+             (deliveryDate >= monthStart && deliveryDate <= monthEnd) ||
+             (loadDate <= monthStart && deliveryDate >= monthEnd);
+    });
+    
+    // Group loads by day for display
+    const loadsByDay = {};
+    for (let d = 1; d <= daysInMonth; d++) {
+      loadsByDay[d] = [];
+    }
+    
+    monthLoads.forEach(load => {
+      const loadDate = new Date(load.date + 'T00:00:00');
+      const deliveryDate = load.deliveryDate ? new Date(load.deliveryDate + 'T00:00:00') : loadDate;
+      
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dayDate = new Date(year, month, d);
+        if (dayDate >= loadDate && dayDate <= deliveryDate) {
+          loadsByDay[d].push({
+            ...load,
+            isStart: dayDate.getTime() === loadDate.getTime(),
+            isEnd: dayDate.getTime() === deliveryDate.getTime(),
+          });
+        }
+      }
+    });
+    
+    // Generate unique colors for brokers
+    const colorPalette = [
+      colors.orange, colors.teal, colors.blue, colors.green, 
+      colors.yellow, '#a855f7', '#ec4899', '#06b6d4'
+    ];
+    const uniqueBrokers = [...new Set(loads.map(l => l.broker || 'Unknown'))];
+    const brokerColors = {};
+    uniqueBrokers.forEach((broker, i) => {
+      brokerColors[broker] = colorPalette[i % colorPalette.length];
+    });
+    
+    // Stats for this month
+    const monthStats = {
+      count: monthLoads.length,
+      revenue: monthLoads.reduce((s, l) => s + (parseFloat(l.rate) || 0), 0),
+      miles: monthLoads.reduce((s, l) => s + (parseFloat(l.loadedMiles) || 0), 0),
+    };
+    
+    // Week day headers
+    const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    
+    // Build calendar grid
+    const calendarDays = [];
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      calendarDays.push(null);
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      calendarDays.push(d);
+    }
+    
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                        'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    const isToday = (day) => {
+      const today = new Date();
+      return day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+    };
+
+    return (
+      <>
+        <div style={styles.header}>
+          <h1 style={styles.pageTitle}>Dispatch Board</h1>
+          <p style={styles.pageSubtitle}>Visual calendar view of your loads and schedule</p>
+        </div>
+
+        {/* Month Stats */}
+        <div style={styles.statsGrid}>
+          <div style={styles.statCard(colors.orange)}>
+            <div style={styles.statIcon}>🚛</div>
+            <div style={styles.statValue(colors.orange)}>{monthStats.count}</div>
+            <div style={styles.statLabel}>Loads This Month</div>
+          </div>
+          <div style={styles.statCard(colors.green)}>
+            <div style={styles.statIcon}>💵</div>
+            <div style={styles.statValue(colors.green)}>{formatCurrency(monthStats.revenue)}</div>
+            <div style={styles.statLabel}>Month Revenue</div>
+          </div>
+          <div style={styles.statCard(colors.teal)}>
+            <div style={styles.statIcon}>🛣️</div>
+            <div style={styles.statValue(colors.teal)}>{formatNumber(monthStats.miles)}</div>
+            <div style={styles.statLabel}>Miles This Month</div>
+          </div>
+        </div>
+
+        {/* Calendar Card */}
+        <div style={styles.card}>
+          {/* Calendar Header */}
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            marginBottom: 24,
+            paddingBottom: 20,
+            borderBottom: `1px solid ${colors.gray700}`,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <button 
+                onClick={goToPrevMonth}
+                style={{
+                  background: colors.gray700,
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '10px 16px',
+                  color: colors.white,
+                  cursor: 'pointer',
+                  fontSize: 18,
+                }}
+              >
+                ←
+              </button>
+              <h2 style={{ 
+                color: colors.white, 
+                fontSize: 28, 
+                fontWeight: 700,
+                minWidth: 220,
+                textAlign: 'center',
+              }}>
+                {monthNames[month]} {year}
+              </h2>
+              <button 
+                onClick={goToNextMonth}
+                style={{
+                  background: colors.gray700,
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '10px 16px',
+                  color: colors.white,
+                  cursor: 'pointer',
+                  fontSize: 18,
+                }}
+              >
+                →
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button onClick={goToToday} style={styles.btn('secondary')}>
+                📍 Today
+              </button>
+              <button onClick={() => setShowLoadModal(true)} style={styles.btn('primary')}>
+                ➕ Add Load
+              </button>
+            </div>
+          </div>
+
+          {/* Week Day Headers */}
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(7, 1fr)',
+            gap: 4,
+            marginBottom: 8,
+          }}>
+            {weekDays.map(day => (
+              <div key={day} style={{ 
+                textAlign: 'center', 
+                padding: '12px 8px',
+                color: colors.gray400,
+                fontSize: 13,
+                fontWeight: 600,
+                textTransform: 'uppercase',
+              }}>
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* Calendar Grid */}
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(7, 1fr)',
+            gap: 4,
+          }}>
+            {calendarDays.map((day, i) => (
+              <div 
+                key={i}
+                style={{
+                  minHeight: 100,
+                  background: day ? (isToday(day) ? `${colors.orange}15` : colors.gray800) : 'transparent',
+                  borderRadius: 12,
+                  padding: day ? 8 : 0,
+                  border: day ? (isToday(day) ? `2px solid ${colors.orange}` : `1px solid ${colors.gray700}`) : 'none',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}
+              >
+                {day && (
+                  <>
+                    {/* Day Number */}
+                    <div style={{ 
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: isToday(day) ? colors.orange : colors.gray300,
+                      marginBottom: 6,
+                    }}>
+                      {day}
+                    </div>
+                    
+                    {/* Load Bars */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {loadsByDay[day]?.slice(0, 3).map((load, loadIndex) => {
+                        const brokerColor = brokerColors[load.broker || 'Unknown'];
+                        return (
+                          <div
+                            key={`${load.id}-${loadIndex}`}
+                            onClick={() => setSelectedLoad(load)}
+                            style={{
+                              background: brokerColor,
+                              padding: '4px 6px',
+                              borderRadius: load.isStart && load.isEnd ? 6 : 
+                                           load.isStart ? '6px 0 0 6px' : 
+                                           load.isEnd ? '0 6px 6px 0' : 0,
+                              marginLeft: load.isStart ? 0 : -8,
+                              marginRight: load.isEnd ? 0 : -8,
+                              cursor: 'pointer',
+                              transition: 'transform 0.1s ease',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                            title={`${load.loadNumber || 'Load'} - ${load.broker || 'Unknown'} - ${formatCurrency(load.rate)}`}
+                          >
+                            {load.isStart && (
+                              <span style={{ fontSize: 11, fontWeight: 600, color: colors.white }}>
+                                {load.loadNumber || (load.stops?.[0]?.location?.split(',')[0]) || 'Load'}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {loadsByDay[day]?.length > 3 && (
+                        <div style={{ 
+                          fontSize: 10, 
+                          color: colors.gray400,
+                          textAlign: 'center',
+                        }}>
+                          +{loadsByDay[day].length - 3} more
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Broker Legend */}
+          {monthLoads.length > 0 && (
+            <div style={{ 
+              marginTop: 24, 
+              paddingTop: 20, 
+              borderTop: `1px solid ${colors.gray700}`,
+            }}>
+              <div style={{ color: colors.gray400, fontSize: 13, marginBottom: 12, fontWeight: 600 }}>
+                BROKERS
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                {Object.entries(brokerColors)
+                  .filter(([broker]) => monthLoads.some(l => (l.broker || 'Unknown') === broker))
+                  .map(([broker, color]) => (
+                    <div key={broker} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ 
+                        width: 16, 
+                        height: 16, 
+                        borderRadius: 4, 
+                        background: color 
+                      }} />
+                      <span style={{ color: colors.gray300, fontSize: 14 }}>{broker}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Empty State */}
+        {loads.length === 0 && (
+          <div style={{ ...styles.card, textAlign: 'center', padding: 60 }}>
+            <div style={{ fontSize: 64, marginBottom: 20 }}>🗓️</div>
+            <p style={{ color: colors.gray300, fontSize: 18, marginBottom: 8 }}>No loads scheduled</p>
+            <p style={{ color: colors.gray500, marginBottom: 24 }}>Add your first load to see it on the calendar</p>
+            <button onClick={() => setShowLoadModal(true)} style={styles.btn('primary')}>
+              ➕ Add Your First Load
+            </button>
+          </div>
+        )}
+
+        {/* Load Detail Modal */}
+        {selectedLoad && (
+          <div style={styles.modal} onClick={() => setSelectedLoad(null)}>
+            <div style={{ ...styles.modalContent, maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'flex-start',
+                marginBottom: 24,
+              }}>
+                <div>
+                  <h2 style={{ color: colors.white, fontSize: 28, marginBottom: 8 }}>
+                    {selectedLoad.loadNumber || 'Load Details'}
+                  </h2>
+                  <div style={{ 
+                    display: 'inline-block',
+                    background: brokerColors[selectedLoad.broker || 'Unknown'],
+                    padding: '4px 12px',
+                    borderRadius: 20,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: colors.white,
+                  }}>
+                    {selectedLoad.broker || 'Unknown Broker'}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedLoad(null)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: colors.gray400,
+                    fontSize: 24,
+                    cursor: 'pointer',
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gap: 20 }}>
+                {/* Route */}
+                <div style={{ background: colors.navyDark, padding: 20, borderRadius: 12 }}>
+                  <div style={{ color: colors.gray400, fontSize: 12, marginBottom: 8, fontWeight: 600 }}>ROUTE</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontSize: 20 }}>📍</span>
+                    <div>
+                      <div style={{ color: colors.white, fontWeight: 600 }}>
+                        {selectedLoad.stops?.[0]?.location || 'Origin'}
+                      </div>
+                      <div style={{ color: colors.gray500, fontSize: 13 }}>
+                        → {selectedLoad.stops?.[selectedLoad.stops.length - 1]?.location || 'Destination'}
+                      </div>
+                    </div>
+                  </div>
+                  {selectedLoad.stops?.length > 2 && (
+                    <div style={{ 
+                      marginTop: 12, paddingTop: 12, borderTop: `1px solid ${colors.gray700}`,
+                      color: colors.orange, fontSize: 13,
+                    }}>
+                      🛑 {selectedLoad.stops.length - 2} intermediate stop(s)
+                    </div>
+                  )}
+                </div>
+
+                {/* Details Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <div style={{ background: colors.navyDark, padding: 16, borderRadius: 12, textAlign: 'center' }}>
+                    <div style={{ color: colors.gray400, fontSize: 12, marginBottom: 4 }}>DATE</div>
+                    <div style={{ color: colors.teal, fontSize: 18, fontWeight: 700 }}>{selectedLoad.date}</div>
+                  </div>
+                  <div style={{ background: colors.navyDark, padding: 16, borderRadius: 12, textAlign: 'center' }}>
+                    <div style={{ color: colors.gray400, fontSize: 12, marginBottom: 4 }}>RATE</div>
+                    <div style={{ color: colors.green, fontSize: 18, fontWeight: 700 }}>{formatCurrency(selectedLoad.rate)}</div>
+                  </div>
+                  <div style={{ background: colors.navyDark, padding: 16, borderRadius: 12, textAlign: 'center' }}>
+                    <div style={{ color: colors.gray400, fontSize: 12, marginBottom: 4 }}>LOADED MI</div>
+                    <div style={{ color: colors.orange, fontSize: 18, fontWeight: 700 }}>{formatNumber(selectedLoad.loadedMiles)}</div>
+                  </div>
+                  <div style={{ background: colors.navyDark, padding: 16, borderRadius: 12, textAlign: 'center' }}>
+                    <div style={{ color: colors.gray400, fontSize: 12, marginBottom: 4 }}>$/MILE</div>
+                    <div style={{ color: colors.blue, fontSize: 18, fontWeight: 700 }}>
+                      {selectedLoad.loadedMiles > 0 ? formatCurrency(selectedLoad.rate / selectedLoad.loadedMiles) : '$0.00'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Driver Assignment */}
+                {selectedLoad.driverId && (
+                  <div style={{ background: colors.navyDark, padding: 16, borderRadius: 12 }}>
+                    <div style={{ color: colors.gray400, fontSize: 12, marginBottom: 8, fontWeight: 600 }}>DRIVER</div>
+                    <div style={{ color: colors.white, fontWeight: 600 }}>
+                      {drivers.find(d => d.id === selectedLoad.driverId)?.name || 'Unknown Driver'}
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                  <button 
+                    onClick={() => {
+                      setSelectedLoad(null);
+                      setEditingLoad(selectedLoad);
+                      setShowLoadModal(true);
+                    }}
+                    style={{ ...styles.btn('primary'), flex: 1 }}
+                  >
+                    ✏️ Edit Load
+                  </button>
+                  <button onClick={() => setSelectedLoad(null)} style={{ ...styles.btn('secondary'), flex: 1 }}>
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
   // ============ SETTINGS VIEW (UPDATED FOR INDEXEDDB) ============
   const renderSettings = () => (
     <>
@@ -4924,6 +5370,7 @@ export default function App() {
       {/* Main Content */}
       <main style={styles.main(sidebarCollapsed)}>
         {activeTab === 'dashboard' && renderDashboard()}
+        {activeTab === 'dispatch' && renderDispatch()}
         {activeTab === 'loads' && renderLoads()}
         {activeTab === 'fuel' && renderFuel()}
         {activeTab === 'drivers' && renderDrivers()}
