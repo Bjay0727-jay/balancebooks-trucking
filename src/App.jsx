@@ -3790,27 +3790,157 @@ export default function App() {
   };
 
   // ============ DRIVER PAY VIEW ============
-  const renderDriverPay = () => (
-    <>
-      <div style={styles.header}>
-        <h1 style={styles.pageTitle}>Driver Pay</h1>
-        <p style={styles.pageSubtitle}>Test version</p>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-        <div style={styles.statCard()}>
-          <div style={styles.statLabel}>Total Loads</div>
-          <div style={styles.statValue(colors.teal)}>{loads.length}</div>
+  const renderDriverPay = () => {
+    // Get current week dates
+    const getWeekDates = () => {
+      const now = new Date();
+      const day = now.getDay();
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - day + (day === 0 ? -6 : 1));
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      return { start: monday.toISOString().split('T')[0], end: sunday.toISOString().split('T')[0] };
+    };
+
+    const currentWeek = getWeekDates();
+    const startDate = payPeriodStart || currentWeek.start;
+    const endDate = currentWeek.end;
+
+    // Filter loads by date
+    const filteredLoads = loads.filter(load => load.date >= startDate && load.date <= endDate);
+
+    // Group by driver
+    const driverPayMap = {};
+    filteredLoads.forEach(load => {
+      const driverId = load.driverId || 'unassigned';
+      if (!driverPayMap[driverId]) {
+        const driver = drivers.find(d => d.id === driverId);
+        driverPayMap[driverId] = {
+          driver: driver || { id: 'unassigned', firstName: 'Unassigned', lastName: '', paymentType: 'none', payRate: 0 },
+          loads: [], totalMiles: 0, totalRevenue: 0, totalPay: 0
+        };
+      }
+      
+      const miles = (parseFloat(load.loadedMiles) || 0) + (parseFloat(load.deadheadMiles) || 0);
+      const revenue = parseFloat(load.rate) || 0;
+      const driverData = driverPayMap[driverId].driver;
+      
+      let pay = 0;
+      if (driverData.paymentType === 'perMile') pay = miles * (parseFloat(driverData.payRate) || 0);
+      else if (driverData.paymentType === 'percentage') pay = revenue * (parseFloat(driverData.payRate) || 0) / 100;
+      else if (driverData.paymentType === 'flatRate') pay = parseFloat(driverData.payRate) || 0;
+      
+      driverPayMap[driverId].loads.push({ ...load, calculatedPay: pay });
+      driverPayMap[driverId].totalMiles += miles;
+      driverPayMap[driverId].totalRevenue += revenue;
+      driverPayMap[driverId].totalPay += pay;
+    });
+
+    const payStatements = Object.values(driverPayMap);
+    const grandTotals = payStatements.reduce((acc, s) => ({
+      loads: acc.loads + s.loads.length, miles: acc.miles + s.totalMiles,
+      revenue: acc.revenue + s.totalRevenue, pay: acc.pay + s.totalPay
+    }), { loads: 0, miles: 0, revenue: 0, pay: 0 });
+
+    const setThisWeek = () => { const d = getWeekDates(); setPayPeriodStart(d.start); };
+    const setLastWeek = () => {
+      const now = new Date();
+      const day = now.getDay();
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - day + (day === 0 ? -6 : 1) - 7);
+      setPayPeriodStart(monday.toISOString().split('T')[0]);
+    };
+
+    const getPayLabel = (type, rate) => {
+      if (type === 'perMile') return '$' + rate + '/mi';
+      if (type === 'percentage') return rate + '%';
+      if (type === 'flatRate') return '$' + rate + '/load';
+      return 'Not Set';
+    };
+
+    return (
+      <>
+        <div style={styles.header}>
+          <h1 style={styles.pageTitle}>Driver Pay Statements</h1>
+          <p style={styles.pageSubtitle}>Period: {startDate} to {endDate}</p>
         </div>
-        <div style={styles.statCard()}>
-          <div style={styles.statLabel}>Total Drivers</div>
-          <div style={styles.statValue(colors.orange)}>{drivers.length}</div>
+
+        <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+          <button style={styles.btn('secondary')} onClick={setThisWeek}>This Week</button>
+          <button style={styles.btn('secondary')} onClick={setLastWeek}>Last Week</button>
         </div>
-      </div>
-      <div style={styles.card}>
-        <p style={{ color: colors.gray400, textAlign: "center", padding: 40 }}>Pay calculation coming soon</p>
-      </div>
-    </>
-  );
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
+          <div style={styles.statCard()}>
+            <div style={styles.statLabel}>Total Loads</div>
+            <div style={styles.statValue(colors.teal)}>{grandTotals.loads}</div>
+          </div>
+          <div style={styles.statCard()}>
+            <div style={styles.statLabel}>Total Miles</div>
+            <div style={styles.statValue(colors.orange)}>{formatNumber(grandTotals.miles)}</div>
+          </div>
+          <div style={styles.statCard()}>
+            <div style={styles.statLabel}>Total Revenue</div>
+            <div style={styles.statValue(colors.blue)}>{formatCurrency(grandTotals.revenue)}</div>
+          </div>
+          <div style={styles.statCard()}>
+            <div style={styles.statLabel}>Total Driver Pay</div>
+            <div style={styles.statValue(colors.green)}>{formatCurrency(grandTotals.pay)}</div>
+          </div>
+        </div>
+
+        {payStatements.length === 0 ? (
+          <div style={styles.card}>
+            <div style={{ textAlign: 'center', padding: 60, color: colors.gray400 }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>💵</div>
+              <p style={{ fontSize: 18 }}>No loads found for this period</p>
+              <p style={{ fontSize: 14 }}>Add loads with assigned drivers to see pay statements</p>
+            </div>
+          </div>
+        ) : (
+          payStatements.map(stmt => (
+            <div key={stmt.driver.id} style={{ ...styles.card, marginBottom: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 16, borderBottom: '1px solid ' + colors.gray700 }}>
+                <div>
+                  <h3 style={{ color: colors.white, fontSize: 18, marginBottom: 4 }}>{stmt.driver.firstName} {stmt.driver.lastName}</h3>
+                  <p style={{ color: colors.gray400, fontSize: 13 }}>
+                    Pay: <span style={{ color: colors.teal }}>{getPayLabel(stmt.driver.paymentType, stmt.driver.payRate)}</span>
+                    {' • '}{stmt.loads.length} loads • {formatNumber(stmt.totalMiles)} mi
+                  </p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ color: colors.gray400, fontSize: 11 }}>Total Pay</div>
+                  <div style={{ color: colors.green, fontSize: 24, fontWeight: 800 }}>{formatCurrency(stmt.totalPay)}</div>
+                </div>
+              </div>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Date</th>
+                    <th style={styles.th}>Load #</th>
+                    <th style={styles.th}>Miles</th>
+                    <th style={styles.th}>Revenue</th>
+                    <th style={styles.th}>Pay</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stmt.loads.map(load => (
+                    <tr key={load.id}>
+                      <td style={styles.td}>{load.date}</td>
+                      <td style={styles.td}>{load.loadNumber || '-'}</td>
+                      <td style={styles.td}>{formatNumber((parseFloat(load.loadedMiles) || 0) + (parseFloat(load.deadheadMiles) || 0))}</td>
+                      <td style={{ ...styles.td, color: colors.blue }}>{formatCurrency(load.rate)}</td>
+                      <td style={{ ...styles.td, color: colors.green, fontWeight: 600 }}>{formatCurrency(load.calculatedPay)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))
+        )}
+      </>
+    );
+  };
 
   // ============ SETTINGS VIEW (UPDATED FOR INDEXEDDB) ============
   const renderSettings = () => (
