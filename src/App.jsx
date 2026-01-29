@@ -193,8 +193,8 @@ const createStyles = (theme) => ({
     flexShrink: 0,
     boxShadow: '0 2px 8px rgba(249,115,22,0.3)',
   },
-  logoText: { color: theme.navText, fontWeight: 800, fontSize: fonts.xl },
-  logoSubtext: { color: theme.primary, fontSize: fonts.md, fontWeight: 700 },
+  logoText: { color: theme.navText, fontWeight: 700, fontSize: fonts.lg },
+  logoSubtext: { color: theme.primary, fontSize: fonts.sm, fontWeight: 600 },
   collapseBtn: {
     background: theme.navHover,
     border: 'none',
@@ -6036,7 +6036,7 @@ export default function App() {
       <aside style={styles.sidebar(sidebarCollapsed)}>
         {/* Logo */}
         <div style={styles.logoContainer(sidebarCollapsed)}>
-          <svg viewBox="0 0 100 100" width={sidebarCollapsed ? 48 : 56} height={sidebarCollapsed ? 48 : 56} style={{ flexShrink: 0 }}>
+          <svg viewBox="0 0 100 100" width={sidebarCollapsed ? 40 : 46} height={sidebarCollapsed ? 40 : 46} style={{ flexShrink: 0 }}>
             <defs>
               <linearGradient id="navyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
                 <stop offset="0%" style={{ stopColor: '#1e293b', stopOpacity: 1 }} />
