@@ -1334,6 +1334,7 @@ export default function App() {
       fuelCost: '',
       otherExpenses: '',
       notes: '',
+      documents: [],
     };
     
     const [form, setForm] = useState(() => {
@@ -1417,6 +1418,46 @@ export default function App() {
           deadheadOriginLng: loc.lng,
           deadheadMiles 
         }));
+      }
+    };
+
+    const handleFileUpload = (e) => {
+      const files = Array.from(e.target.files);
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const newDoc = {
+            id: uid(),
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            data: event.target.result,
+            uploadedAt: new Date().toISOString()
+          };
+          setForm(prev => ({ ...prev, documents: [...(prev.documents || []), newDoc] }));
+        };
+        reader.readAsDataURL(file);
+      });
+      e.target.value = '';
+    };
+
+    const removeDocument = (docId) => {
+      setForm(prev => ({ ...prev, documents: (prev.documents || []).filter(d => d.id !== docId) }));
+    };
+
+    const downloadDocument = (doc) => {
+      const link = document.createElement('a');
+      link.href = doc.data;
+      link.download = doc.name;
+      link.click();
+    };
+
+    const viewDocument = (doc) => {
+      const win = window.open();
+      if (doc.type.includes('pdf')) {
+        win.document.write('<iframe src="' + doc.data + '" style="width:100%;height:100%;border:none;"></iframe>');
+      } else {
+        win.document.write('<img src="' + doc.data + '" style="max-width:100%;height:auto;">');
       }
     };
 
@@ -1689,6 +1730,34 @@ export default function App() {
             <div style={styles.formGroup}>
               <label style={styles.label}>Notes</label>
               <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} placeholder="Any additional notes..." style={{ ...styles.input, minHeight: 100, resize: 'vertical' }} />
+
+              {/* Documents Section */}
+              <label style={styles.label}>Documents (BOL, POD, Rate Con)</label>
+              <div style={{ border: '1px dashed ' + colors.gray600, borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                <input type="file" id="doc-upload" multiple accept=".pdf,.png,.jpg,.jpeg" onChange={handleFileUpload} style={{ display: 'none' }} />
+                <label htmlFor="doc-upload" style={{ ...styles.btn('secondary'), cursor: 'pointer', display: 'inline-block', marginBottom: 12 }}>
+                  📎 Attach Files
+                </label>
+                <span style={{ color: colors.gray400, fontSize: 12, marginLeft: 12 }}>PDF, PNG, JPG accepted</span>
+                
+                {(form.documents || []).length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    {(form.documents || []).map(doc => (
+                      <div key={doc.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: colors.navyDark, borderRadius: 6, marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 20 }}>{doc.type.includes('pdf') ? '📄' : '🖼️'}</span>
+                          <span style={{ color: colors.white, fontSize: 14 }}>{doc.name}</span>
+                          <span style={{ color: colors.gray400, fontSize: 11 }}>({(doc.size / 1024).toFixed(1)} KB)</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button type="button" onClick={() => viewDocument(doc)} style={{ background: 'none', border: 'none', color: colors.blue, cursor: 'pointer', fontSize: 14 }} title="View">👁️</button>
+                          <button type="button" onClick={() => downloadDocument(doc)} style={{ background: 'none', border: 'none', color: colors.teal, cursor: 'pointer', fontSize: 14 }} title="Download">⬇️</button>
+                          <button type="button" onClick={() => removeDocument(doc.id)} style={{ background: 'none', border: 'none', color: colors.red, cursor: 'pointer', fontSize: 14 }} title="Delete">🗑️</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
             </div>
 
             <div style={{ display: 'flex', gap: 16, justifyContent: 'flex-end', marginTop: 32 }}>
@@ -2563,6 +2632,7 @@ export default function App() {
                       onClick={() => openEditLoad(load)}
                     >
                       {load.loadNumber || '-'}
+                      {load.documents && load.documents.length > 0 && <span title={load.documents.length + ' document(s)'} style={{ marginLeft: 6 }}>📎</span>}
                     </td>
                     <td style={styles.td}>
                       <div>
@@ -3250,6 +3320,7 @@ export default function App() {
       insuranceDeduction: '',
       assignedTruckId: '',
       notes: '',
+      documents: [],
     });
 
     const handleSubmit = (e) => {
@@ -3368,6 +3439,7 @@ export default function App() {
       ownershipType: 'owned',
       monthlyPayment: '',
       notes: '',
+      documents: [],
     });
 
     const handleSubmit = (e) => {
