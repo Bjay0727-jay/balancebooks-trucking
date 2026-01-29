@@ -6036,7 +6036,7 @@ export default function App() {
       <aside style={styles.sidebar(sidebarCollapsed)}>
         {/* Logo */}
         <div style={styles.logoContainer(sidebarCollapsed)}>
-          <svg viewBox="0 0 100 100" width={sidebarCollapsed ? 36 : 44} height={sidebarCollapsed ? 36 : 44} style={{ flexShrink: 0 }}>
+          <svg viewBox="0 0 100 100" width={sidebarCollapsed ? 44 : 52} height={sidebarCollapsed ? 44 : 52} style={{ flexShrink: 0 }}>
             <defs>
               <linearGradient id="navyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
                 <stop offset="0%" style={{ stopColor: '#1e293b', stopOpacity: 1 }} />
