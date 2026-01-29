@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'BalanceBooksTrucking';
-const DB_VERSION = 3;
+const DB_VERSION = 2;
 
 const STORES = {
   LOADS: 'loads',
@@ -15,8 +15,7 @@ const STORES = {
   SETTINGS: 'settings',
   DRIVERS: 'drivers',
   TRUCKS: 'trucks',
-  PAYSTATEMENTS: 'paystatements',
-  INVOICES: 'invoices'
+  PAYSTATEMENTS: 'paystatements'
 };
 
 let dbInstance = null;
@@ -53,8 +52,7 @@ export async function initDatabase() {
         { name: STORES.SETTINGS, keyPath: 'key' },
         { name: STORES.DRIVERS, keyPath: 'id' },
         { name: STORES.TRUCKS, keyPath: 'id' },
-        { name: STORES.PAYSTATEMENTS, keyPath: 'id' },
-        { name: STORES.INVOICES, keyPath: 'id' }
+        { name: STORES.PAYSTATEMENTS, keyPath: 'id' }
       ];
 
       storesToCreate.forEach(store => {
@@ -240,16 +238,6 @@ export const payStatementsDB = {
   clear: () => clearStore(STORES.PAYSTATEMENTS)
 };
 
-// INVOICES
-export const invoicesDB = {
-  getAll: () => getAll(STORES.INVOICES),
-  getById: (id) => getById(STORES.INVOICES, id),
-  save: (invoice) => saveItem(STORES.INVOICES, { ...invoice, updatedAt: new Date().toISOString() }),
-  replaceAll: (invoices) => replaceAll(STORES.INVOICES, invoices),
-  delete: (id) => deleteItem(STORES.INVOICES, id),
-  clear: () => clearStore(STORES.INVOICES)
-};
-
 // SETTINGS
 export const settingsDB = {
   get: async (key) => {
@@ -275,8 +263,7 @@ export async function exportAllData() {
     expenses: await expensesDB.getAll(),
     perDiemDays: await perdiemDB.getAll(),
     drivers: await driversDB.getAll(),
-    trucks: await trucksDB.getAll(),
-    invoices: await invoicesDB.getAll()
+    trucks: await trucksDB.getAll()
   };
 }
 
@@ -288,7 +275,6 @@ export async function importAllData(data) {
   if (data.perDiemDays) await perdiemDB.replaceAll(data.perDiemDays);
   if (data.drivers) await driversDB.replaceAll(data.drivers);
   if (data.trucks) await trucksDB.replaceAll(data.trucks);
-  if (data.invoices) await invoicesDB.replaceAll(data.invoices);
   if (data.autoBackup !== undefined) await settingsDB.set('autoBackup', data.autoBackup);
   if (data.lastBackup) await settingsDB.set('lastBackup', data.lastBackup);
   if (data.notifications !== undefined) await settingsDB.set('notifications', data.notifications);
@@ -304,7 +290,6 @@ export async function clearAllData() {
   await driversDB.clear();
   await trucksDB.clear();
   await payStatementsDB.clear();
-  await invoicesDB.clear();
   await settingsDB.clear();
   return true;
 }
