@@ -6,7 +6,7 @@
 import { initDatabase } from './database';
 
 const DB_NAME = 'BalanceBooksTrucking';
-const DB_VERSION = 3;
+const DB_VERSION = 2;
 const MIGRATION_KEY = 'balancebooks_migrated_v2';
 
 let dbInstance = null;
@@ -38,7 +38,7 @@ async function initDB() {
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
       
-      const stores = ['loads', 'fuel', 'ifta', 'expenses', 'perdiem', 'drivers', 'trucks', 'paystatements', 'invoices'];
+      const stores = ['loads', 'fuel', 'ifta', 'expenses', 'perdiem', 'drivers', 'trucks', 'paystatements'];
       stores.forEach(name => {
         if (!db.objectStoreNames.contains(name)) {
           db.createObjectStore(name, { keyPath: 'id' });
@@ -197,7 +197,6 @@ export async function loadFromIndexedDB() {
     const perDiemDays = await getAll('perdiem');
     const drivers = await getAll('drivers');
     const trucks = await getAll('trucks');
-    const invoices = await getAll('invoices');
     
     const autoBackup = await getSetting('autoBackup');
     const lastBackup = await getSetting('lastBackup');
@@ -211,7 +210,6 @@ export async function loadFromIndexedDB() {
       perDiemDays: perDiemDays || [],
       drivers: drivers || [],
       trucks: trucks || [],
-      invoices: invoices || [],
       autoBackup: autoBackup ?? false,
       lastBackup: lastBackup ?? null,
       notifications: notifications ?? false
@@ -227,7 +225,6 @@ export async function loadFromIndexedDB() {
       perDiemDays: [],
       drivers: [],
       trucks: [],
-      invoices: [],
       autoBackup: false,
       lastBackup: null,
       notifications: false
