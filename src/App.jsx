@@ -779,6 +779,7 @@ export default function App() {
   // Dispatch Board state
   const [dispatchDate, setDispatchDate] = useState(new Date());
   const [selectedDispatchLoad, setSelectedDispatchLoad] = useState(null);
+  const [dispatchViewMode, setDispatchViewMode] = useState('month'); // 'month', 'week', 'list'
 
   // ============ DATA STATE - Now loaded from IndexedDB ============
   const [fuelEntries, setFuelEntries] = useState([]);
@@ -4222,13 +4223,15 @@ export default function App() {
 
   // ============ DISPATCH BOARD VIEW ============
   const renderDispatch = () => {
-    // Use component-level state: dispatchDate, selectedDispatchLoad
+    // Use component-level state
     const currentDate = dispatchDate;
     const setCurrentDate = setDispatchDate;
     const selectedLoad = selectedDispatchLoad;
     const setSelectedLoad = setSelectedDispatchLoad;
+    const viewMode = dispatchViewMode;
+    const setViewMode = setDispatchViewMode;
     
-    // Get the first and last day of the current month view
+    // Get calendar calculations
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const firstDayOfMonth = new Date(year, month, 1);
@@ -4236,12 +4239,28 @@ export default function App() {
     const daysInMonth = lastDayOfMonth.getDate();
     const startingDayOfWeek = firstDayOfMonth.getDay();
     
-    // Calendar navigation
+    // Week view calculations
+    const getWeekDates = () => {
+      const curr = new Date(currentDate);
+      const dayOfWeek = curr.getDay();
+      const dates = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(curr);
+        d.setDate(curr.getDate() - dayOfWeek + i);
+        dates.push(d);
+      }
+      return dates;
+    };
+    const weekDates = getWeekDates();
+    
+    // Navigation
     const goToPrevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
     const goToNextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+    const goToPrevWeek = () => setCurrentDate(new Date(currentDate.getTime() - 7 * 24 * 60 * 60 * 1000));
+    const goToNextWeek = () => setCurrentDate(new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000));
     const goToToday = () => setCurrentDate(new Date());
     
-    // Filter loads for this month
+    // Filter loads for display period
     const monthStart = `${year}-${String(month + 1).padStart(2, '0')}-01`;
     const monthEnd = `${year}-${String(month + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
     
@@ -4253,7 +4272,13 @@ export default function App() {
              (loadDate <= monthStart && deliveryDate >= monthEnd);
     });
     
-    // Group loads by day for display
+    // Week loads
+    const formatDateStr = (d) => d.toISOString().split('T')[0];
+    const weekStart = formatDateStr(weekDates[0]);
+    const weekEnd = formatDateStr(weekDates[6]);
+    const weekLoads = loads.filter(load => load.date >= weekStart && load.date <= weekEnd);
+    
+    // Group loads by day for month view
     const loadsByDay = {};
     for (let d = 1; d <= daysInMonth; d++) {
       loadsByDay[d] = [];
@@ -4275,6 +4300,13 @@ export default function App() {
       }
     });
     
+    // Group loads by day for week view
+    const loadsByWeekDay = {};
+    weekDates.forEach((date, i) => {
+      const dateStr = formatDateStr(date);
+      loadsByWeekDay[i] = loads.filter(l => l.date === dateStr);
+    });
+    
     // Generate unique colors for brokers
     const colorPalette = [
       colors.orange, colors.teal, colors.blue, colors.green, 
@@ -4293,10 +4325,31 @@ export default function App() {
       miles: monthLoads.reduce((s, l) => s + (parseFloat(l.loadedMiles) || 0), 0),
     };
     
-    // Week day headers
-    const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    // Helper functions
+    const weekDayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                        'July', 'August', 'September', 'October', 'November', 'December'];
     
-    // Build calendar grid
+    const isToday = (day) => {
+      const today = new Date();
+      return day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+    };
+    
+    const isTodayDate = (date) => {
+      const today = new Date();
+      return date.getDate() === today.getDate() && 
+             date.getMonth() === today.getMonth() && 
+             date.getFullYear() === today.getFullYear();
+    };
+    
+    // Get driver name helper
+    const getDriverName = (driverId) => {
+      if (!driverId) return null;
+      const driver = drivers.find(d => d.id === driverId);
+      return driver?.name || null;
+    };
+    
+    // Build calendar grid for month view
     const calendarDays = [];
     for (let i = 0; i < startingDayOfWeek; i++) {
       calendarDays.push(null);
@@ -4305,12 +4358,14 @@ export default function App() {
       calendarDays.push(d);
     }
     
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                        'July', 'August', 'September', 'October', 'November', 'December'];
-    
-    const isToday = (day) => {
-      const today = new Date();
-      return day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+    // Format week range for header
+    const formatWeekRange = () => {
+      const start = weekDates[0];
+      const end = weekDates[6];
+      if (start.getMonth() === end.getMonth()) {
+        return `${monthNames[start.getMonth()]} ${start.getDate()} - ${end.getDate()}, ${start.getFullYear()}`;
+      }
+      return `${monthNames[start.getMonth()].slice(0,3)} ${start.getDate()} - ${monthNames[end.getMonth()].slice(0,3)} ${end.getDate()}, ${end.getFullYear()}`;
     };
 
     return (
@@ -4349,10 +4404,12 @@ export default function App() {
             marginBottom: 24,
             paddingBottom: 20,
             borderBottom: `1px solid ${colors.gray700}`,
+            flexWrap: 'wrap',
+            gap: 16,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <button 
-                onClick={goToPrevMonth}
+                onClick={viewMode === 'week' ? goToPrevWeek : goToPrevMonth}
                 style={{
                   background: colors.gray700,
                   border: 'none',
@@ -4367,15 +4424,15 @@ export default function App() {
               </button>
               <h2 style={{ 
                 color: colors.white, 
-                fontSize: 28, 
+                fontSize: 24, 
                 fontWeight: 700,
-                minWidth: 220,
+                minWidth: 260,
                 textAlign: 'center',
               }}>
-                {monthNames[month]} {year}
+                {viewMode === 'week' ? formatWeekRange() : `${monthNames[month]} ${year}`}
               </h2>
               <button 
-                onClick={goToNextMonth}
+                onClick={viewMode === 'week' ? goToNextWeek : goToNextMonth}
                 style={{
                   background: colors.gray700,
                   border: 'none',
@@ -4389,6 +4446,34 @@ export default function App() {
                 →
               </button>
             </div>
+            
+            {/* View Toggle */}
+            <div style={{ display: 'flex', background: colors.gray800, borderRadius: 10, padding: 4 }}>
+              {[
+                { id: 'month', label: '📅 Month' },
+                { id: 'week', label: '📆 Week' },
+                { id: 'list', label: '📋 List' },
+              ].map(v => (
+                <button
+                  key={v.id}
+                  onClick={() => setViewMode(v.id)}
+                  style={{
+                    background: viewMode === v.id ? colors.orange : 'transparent',
+                    border: 'none',
+                    borderRadius: 8,
+                    padding: '8px 16px',
+                    color: viewMode === v.id ? colors.white : colors.gray400,
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: 14,
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
+            
             <div style={{ display: 'flex', gap: 12 }}>
               <button onClick={goToToday} style={styles.btn('secondary')}>
                 📍 Today
@@ -4399,108 +4484,226 @@ export default function App() {
             </div>
           </div>
 
-          {/* Week Day Headers */}
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(7, 1fr)',
-            gap: 4,
-            marginBottom: 8,
-          }}>
-            {weekDays.map(day => (
-              <div key={day} style={{ 
-                textAlign: 'center', 
-                padding: '12px 8px',
-                color: colors.gray400,
-                fontSize: 13,
-                fontWeight: 600,
-                textTransform: 'uppercase',
+          {/* MONTH VIEW */}
+          {viewMode === 'month' && (
+            <>
+              {/* Week Day Headers */}
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(7, 1fr)',
+                gap: 4,
+                marginBottom: 8,
               }}>
-                {day}
+                {weekDayNames.map(day => (
+                  <div key={day} style={{ 
+                    textAlign: 'center', 
+                    padding: '12px 8px',
+                    color: colors.gray400,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                  }}>
+                    {day}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {/* Calendar Grid */}
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: 'repeat(7, 1fr)',
-            gap: 4,
-          }}>
-            {calendarDays.map((day, i) => (
-              <div 
-                key={i}
-                style={{
-                  minHeight: 100,
-                  background: day ? (isToday(day) ? `${colors.orange}15` : colors.gray800) : 'transparent',
-                  borderRadius: 12,
-                  padding: day ? 8 : 0,
-                  border: day ? (isToday(day) ? `2px solid ${colors.orange}` : `1px solid ${colors.gray700}`) : 'none',
-                  position: 'relative',
-                  overflow: 'hidden',
-                }}
-              >
-                {day && (
-                  <>
-                    {/* Day Number */}
-                    <div style={{ 
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: isToday(day) ? colors.orange : colors.gray300,
-                      marginBottom: 6,
-                    }}>
-                      {day}
-                    </div>
-                    
-                    {/* Load Bars */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      {loadsByDay[day]?.slice(0, 3).map((load, loadIndex) => {
-                        const brokerColor = brokerColors[load.broker || 'Unknown'];
-                        return (
-                          <div
-                            key={`${load.id}-${loadIndex}`}
-                            onClick={() => setSelectedLoad(load)}
-                            style={{
-                              background: brokerColor,
-                              padding: '4px 6px',
-                              borderRadius: load.isStart && load.isEnd ? 6 : 
-                                           load.isStart ? '6px 0 0 6px' : 
-                                           load.isEnd ? '0 6px 6px 0' : 0,
-                              marginLeft: load.isStart ? 0 : -8,
-                              marginRight: load.isEnd ? 0 : -8,
-                              cursor: 'pointer',
-                              transition: 'transform 0.1s ease',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
-                            title={`${load.loadNumber || 'Load'} - ${load.broker || 'Unknown'} - ${formatCurrency(load.rate)}`}
-                          >
-                            {load.isStart && (
-                              <span style={{ fontSize: 11, fontWeight: 600, color: colors.white }}>
-                                {load.loadNumber || (load.stops?.[0]?.location?.split(',')[0]) || 'Load'}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                      {loadsByDay[day]?.length > 3 && (
+              {/* Calendar Grid */}
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(7, 1fr)',
+                gap: 4,
+              }}>
+                {calendarDays.map((day, i) => (
+                  <div 
+                    key={i}
+                    style={{
+                      minHeight: 100,
+                      background: day ? (isToday(day) ? `${colors.orange}15` : colors.gray800) : 'transparent',
+                      borderRadius: 12,
+                      padding: day ? 8 : 0,
+                      border: day ? (isToday(day) ? `2px solid ${colors.orange}` : `1px solid ${colors.gray700}`) : 'none',
+                      position: 'relative',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {day && (
+                      <>
                         <div style={{ 
-                          fontSize: 10, 
-                          color: colors.gray400,
-                          textAlign: 'center',
+                          fontSize: 14,
+                          fontWeight: 600,
+                          color: isToday(day) ? colors.orange : colors.gray300,
+                          marginBottom: 6,
                         }}>
-                          +{loadsByDay[day].length - 3} more
+                          {day}
                         </div>
-                      )}
-                    </div>
-                  </>
-                )}
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          {loadsByDay[day]?.slice(0, 3).map((load, loadIndex) => {
+                            const brokerColor = brokerColors[load.broker || 'Unknown'];
+                            return (
+                              <div
+                                key={`${load.id}-${loadIndex}`}
+                                onClick={() => setSelectedLoad(load)}
+                                style={{
+                                  background: brokerColor,
+                                  padding: '4px 6px',
+                                  borderRadius: load.isStart && load.isEnd ? 6 : 
+                                               load.isStart ? '6px 0 0 6px' : 
+                                               load.isEnd ? '0 6px 6px 0' : 0,
+                                  marginLeft: load.isStart ? 0 : -8,
+                                  marginRight: load.isEnd ? 0 : -8,
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                                title={`${load.loadNumber || 'Load'} - ${load.broker || 'Unknown'}`}
+                              >
+                                {load.isStart && (
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: colors.white }}>
+                                    {load.loadNumber || (load.stops?.[0]?.location?.split(',')[0]) || 'Load'}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {loadsByDay[day]?.length > 3 && (
+                            <div style={{ fontSize: 10, color: colors.gray400, textAlign: 'center' }}>
+                              +{loadsByDay[day].length - 3} more
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
+
+          {/* WEEK VIEW */}
+          {viewMode === 'week' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8 }}>
+              {weekDates.map((date, i) => (
+                <div 
+                  key={i}
+                  style={{
+                    background: isTodayDate(date) ? `${colors.orange}15` : colors.gray800,
+                    borderRadius: 12,
+                    padding: 12,
+                    border: isTodayDate(date) ? `2px solid ${colors.orange}` : `1px solid ${colors.gray700}`,
+                    minHeight: 200,
+                  }}
+                >
+                  <div style={{ 
+                    textAlign: 'center', 
+                    marginBottom: 12,
+                    paddingBottom: 12,
+                    borderBottom: `1px solid ${colors.gray700}`,
+                  }}>
+                    <div style={{ color: colors.gray400, fontSize: 12, fontWeight: 600 }}>
+                      {weekDayNames[i]}
+                    </div>
+                    <div style={{ 
+                      color: isTodayDate(date) ? colors.orange : colors.white, 
+                      fontSize: 24, 
+                      fontWeight: 700 
+                    }}>
+                      {date.getDate()}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {loadsByWeekDay[i]?.map(load => {
+                      const brokerColor = brokerColors[load.broker || 'Unknown'];
+                      return (
+                        <div
+                          key={load.id}
+                          onClick={() => setSelectedLoad(load)}
+                          style={{
+                            background: brokerColor,
+                            padding: '6px 8px',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                          }}
+                          title={`${load.loadNumber || 'Load'} - ${load.broker || 'Unknown'}`}
+                        >
+                          <div style={{ fontSize: 11, fontWeight: 600, color: colors.white }}>
+                            {load.loadNumber || 'Load'}
+                          </div>
+                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)' }}>
+                            {formatCurrency(load.rate)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {(!loadsByWeekDay[i] || loadsByWeekDay[i].length === 0) && (
+                      <div style={{ color: colors.gray600, fontSize: 12, textAlign: 'center', padding: 20 }}>
+                        No loads
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* LIST VIEW */}
+          {viewMode === 'list' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {monthLoads.length > 0 ? (
+                [...monthLoads]
+                  .sort((a, b) => a.date.localeCompare(b.date))
+                  .map(load => {
+                    const brokerColor = brokerColors[load.broker || 'Unknown'];
+                    const driverName = getDriverName(load.driverId);
+                    return (
+                      <div
+                        key={load.id}
+                        onClick={() => setSelectedLoad(load)}
+                        style={{
+                          background: colors.gray800,
+                          borderRadius: 12,
+                          padding: 16,
+                          cursor: 'pointer',
+                          borderLeft: `4px solid ${brokerColor}`,
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                          <div>
+                            <div style={{ color: colors.white, fontWeight: 700, fontSize: 16 }}>
+                              {load.loadNumber || 'Load'}
+                            </div>
+                            <div style={{ color: brokerColor, fontSize: 13, fontWeight: 600 }}>
+                              {load.broker || 'Unknown Broker'}
+                            </div>
+                          </div>
+                          <div style={{ color: colors.green, fontWeight: 700, fontSize: 18 }}>
+                            {formatCurrency(load.rate)}
+                          </div>
+                        </div>
+                        <div style={{ color: colors.gray400, fontSize: 13, marginBottom: 8 }}>
+                          📍 {load.stops?.[0]?.location?.split(',')[0] || 'Origin'} → {load.stops?.[load.stops.length - 1]?.location?.split(',')[0] || 'Dest'}
+                        </div>
+                        <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
+                          <span style={{ color: colors.teal }}>📅 {load.date}</span>
+                          <span style={{ color: colors.orange }}>{formatNumber(load.loadedMiles)} mi</span>
+                          {driverName && <span style={{ color: colors.blue }}>👤 {driverName}</span>}
+                        </div>
+                      </div>
+                    );
+                  })
+              ) : (
+                <div style={{ textAlign: 'center', padding: 40, color: colors.gray400 }}>
+                  <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
+                  <p>No loads this month</p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Broker Legend */}
-          {monthLoads.length > 0 && (
+          {monthLoads.length > 0 && viewMode !== 'list' && (
             <div style={{ 
               marginTop: 24, 
               paddingTop: 20, 
@@ -4514,12 +4717,7 @@ export default function App() {
                   .filter(([broker]) => monthLoads.some(l => (l.broker || 'Unknown') === broker))
                   .map(([broker, color]) => (
                     <div key={broker} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ 
-                        width: 16, 
-                        height: 16, 
-                        borderRadius: 4, 
-                        background: color 
-                      }} />
+                      <div style={{ width: 16, height: 16, borderRadius: 4, background: color }} />
                       <span style={{ color: colors.gray300, fontSize: 14 }}>{broker}</span>
                     </div>
                   ))}
@@ -4627,15 +4825,40 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Driver Assignment */}
-                {selectedLoad.driverId && (
-                  <div style={{ background: colors.navyDark, padding: 16, borderRadius: 12 }}>
-                    <div style={{ color: colors.gray400, fontSize: 12, marginBottom: 8, fontWeight: 600 }}>DRIVER</div>
-                    <div style={{ color: colors.white, fontWeight: 600 }}>
-                      {drivers.find(d => d.id === selectedLoad.driverId)?.name || 'Unknown Driver'}
-                    </div>
-                  </div>
-                )}
+                {/* Driver Assignment - Fixed */}
+                {(() => {
+                  const driverName = getDriverName(selectedLoad.driverId);
+                  if (driverName) {
+                    return (
+                      <div style={{ background: colors.navyDark, padding: 16, borderRadius: 12 }}>
+                        <div style={{ color: colors.gray400, fontSize: 12, marginBottom: 8, fontWeight: 600 }}>DRIVER</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 20 }}>👤</span>
+                          <div style={{ color: colors.white, fontWeight: 600 }}>{driverName}</div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {/* Truck Assignment */}
+                {(() => {
+                  if (!selectedLoad.truckId) return null;
+                  const truck = trucks.find(t => t.id === selectedLoad.truckId);
+                  if (truck) {
+                    return (
+                      <div style={{ background: colors.navyDark, padding: 16, borderRadius: 12 }}>
+                        <div style={{ color: colors.gray400, fontSize: 12, marginBottom: 8, fontWeight: 600 }}>TRUCK</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 20 }}>🚚</span>
+                          <div style={{ color: colors.white, fontWeight: 600 }}>{truck.name || truck.unitNumber}</div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
