@@ -3797,10 +3797,17 @@ export default function App() {
         <p style={styles.pageSubtitle}>Test version</p>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
-        <div style={styles.statCard}>
+        <div style={styles.statCard()}>
           <div style={styles.statLabel}>Total Loads</div>
           <div style={styles.statValue(colors.teal)}>{loads.length}</div>
         </div>
+        <div style={styles.statCard()}>
+          <div style={styles.statLabel}>Total Drivers</div>
+          <div style={styles.statValue(colors.orange)}>{drivers.length}</div>
+        </div>
+      </div>
+      <div style={styles.card}>
+        <p style={{ color: colors.gray400, textAlign: "center", padding: 40 }}>Pay calculation coming soon</p>
       </div>
     </>
   );
