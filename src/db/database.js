@@ -239,3 +239,9 @@ export const clearAllData = async () => {
     trucksDB.clear()
   ]);
 };
+
+// Initialize database (called by migration)
+export const initDatabase = async () => {
+  await openDB();
+  return true;
+};
