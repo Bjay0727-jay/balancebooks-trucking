@@ -785,6 +785,11 @@ export default function App() {
   const [drivers, setDrivers] = useState([]);
   const [trucks, setTrucks] = useState([]);
 
+  // Driver Pay State
+  const [payPeriodStart, setPayPeriodStart] = useState("");
+  const [payPeriodEnd, setPayPeriodEnd] = useState("");
+  const [selectedPayDriver, setSelectedPayDriver] = useState("all");
+
   // ============ SETTINGS STATE (NEW - matches Pro) ============
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
   const [lastBackupDate, setLastBackupDate] = useState(null);
@@ -1295,6 +1300,7 @@ export default function App() {
     { id: 'loads', label: 'Loads', icon: '🚛' },
     { id: 'fuel', label: 'Fuel Log', icon: '⛽' },
     { id: 'drivers', label: 'Drivers', icon: '👤' },
+    { id: 'driverpay', label: 'Driver Pay', icon: '💵' },
     { id: 'trucks', label: 'Trucks', icon: '🚚' },
     { id: 'ifta', label: 'IFTA', icon: '📋' },
     { id: 'expenses', label: 'Expenses', icon: '💰' },
@@ -3787,6 +3793,22 @@ export default function App() {
     );
   };
 
+
+  // ============ DRIVER PAY VIEW ============
+  const renderDriverPay = () => {
+    return (
+      <>
+        <div style={styles.header}>
+          <h1 style={styles.pageTitle}>Driver Pay Statements</h1>
+          <p style={styles.pageSubtitle}>Calculate and review driver pay</p>
+        </div>
+        <div style={styles.card}>
+          <p style={{ color: colors.gray400, textAlign: "center", padding: 40 }}>Driver Pay feature coming soon</p>
+        </div>
+      </>
+    );
+  };
+
   // ============ SETTINGS VIEW (UPDATED FOR INDEXEDDB) ============
   const renderSettings = () => (
     <>
@@ -4499,6 +4521,7 @@ export default function App() {
         {activeTab === 'loads' && renderLoads()}
         {activeTab === 'fuel' && renderFuel()}
         {activeTab === 'drivers' && renderDrivers()}
+        {activeTab === 'driverpay' && renderDriverPay()}
         {activeTab === 'trucks' && renderTrucks()}
         {activeTab === 'ifta' && renderIFTA()}
         {activeTab === 'expenses' && renderExpenses()}
