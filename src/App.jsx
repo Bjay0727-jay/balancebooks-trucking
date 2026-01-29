@@ -4126,7 +4126,7 @@ export default function App() {
                 <tbody>
                   {monthlyStats.map((month, idx) => (
                     <tr key={idx}>
-                      <td style={styles.td}>{month.month}</td>
+                      <td style={styles.td}>{month.month ? new Date(month.month + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : month.month}</td>
                       <td style={styles.td}>{month.loads}</td>
                       <td style={styles.td}>{formatNumber(month.miles)}</td>
                       <td style={{ ...styles.td, color: colors.green }}>{formatCurrency(month.revenue)}</td>
