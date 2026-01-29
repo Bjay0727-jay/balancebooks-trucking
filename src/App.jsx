@@ -266,18 +266,10 @@ const formatCentsPerMile = (dollars) => {
 const useMultiSelect = (items = []) => {
   const [selectedIds, setSelectedIds] = useState(new Set());
 
+  // Calculate without useMemo - simpler and avoids Set dependency issues
   const selectedCount = selectedIds.size;
-
-  const allSelected = useMemo(() => {
-    if (items.length === 0) return false;
-    return items.every(item => selectedIds.has(item.id));
-  }, [items, selectedIds]);
-
-  const someSelected = useMemo(() => {
-    if (items.length === 0) return false;
-    const count = items.filter(item => selectedIds.has(item.id)).length;
-    return count > 0 && count < items.length;
-  }, [items, selectedIds]);
+  const allSelected = items.length > 0 && items.every(item => selectedIds.has(item.id));
+  const someSelected = items.length > 0 && items.some(item => selectedIds.has(item.id)) && !allSelected;
 
   const toggle = (id) => {
     setSelectedIds(prev => {
@@ -288,7 +280,7 @@ const useMultiSelect = (items = []) => {
     });
   };
 
-  const toggleItem = toggle; // Alias
+  const toggleItem = toggle;
 
   const isAllSelected = (itemList) => {
     const checkItems = itemList || items;
@@ -312,7 +304,6 @@ const useMultiSelect = (items = []) => {
   };
 
   const clearSelection = () => setSelectedIds(new Set());
-  
   const isSelected = (id) => selectedIds.has(id);
 
   return { 
@@ -1328,72 +1319,6 @@ export default function App() {
     totalMiles: iftaSummary.reduce((s, d) => s + d.miles, 0),
     totalGallons: iftaSummary.reduce((s, d) => s + d.gallons, 0),
   }), [iftaSummary]);
-
-  // ============ INVOICE STATS ============
-  const invoiceStats = useMemo(() => {
-    const stats = {
-      total: invoices.length,
-      draft: invoices.filter(i => i.status === 'draft').length,
-      pending: invoices.filter(i => i.status === 'pending' || i.status === 'sent').length,
-      paid: invoices.filter(i => i.status === 'paid').length,
-      overdue: 0,
-      totalOutstanding: 0,
-      totalPaid: 0,
-    };
-    
-    const today = new Date();
-    invoices.forEach(inv => {
-      if (inv.status === 'paid') {
-        stats.totalPaid += parseFloat(inv.total) || 0;
-      } else {
-        stats.totalOutstanding += parseFloat(inv.total) || 0;
-        if (new Date(inv.dueDate) < today && inv.status !== 'draft') {
-          stats.overdue++;
-        }
-      }
-    });
-    
-    return stats;
-  }, [invoices]);
-
-  // Invoice summary for dashboard
-  const invoiceSummary = useMemo(() => {
-    const today = new Date();
-    let outstanding = 0;
-    let overdue = 0;
-    let overdueAmount = 0;
-    
-    invoices.forEach(inv => {
-      if (inv.status !== 'paid' && inv.status !== 'draft') {
-        outstanding += parseFloat(inv.total) || 0;
-        if (new Date(inv.dueDate) < today) {
-          overdue++;
-          overdueAmount += parseFloat(inv.total) || 0;
-        }
-      }
-    });
-    
-    return { outstanding, overdue, overdueAmount };
-  }, [invoices]);
-
-  // Filtered invoices based on status filter
-  const filteredInvoices = useMemo(() => {
-    let filtered = [...invoices];
-    
-    if (invoiceStatusFilter !== 'all') {
-      if (invoiceStatusFilter === 'overdue') {
-        const today = new Date();
-        filtered = filtered.filter(inv => 
-          new Date(inv.dueDate) < today && inv.status !== 'paid' && inv.status !== 'draft'
-        );
-      } else {
-        filtered = filtered.filter(inv => inv.status === invoiceStatusFilter);
-      }
-    }
-    
-    // Sort by date descending
-    return filtered.sort((a, b) => new Date(b.invoiceDate) - new Date(a.invoiceDate));
-  }, [invoices, invoiceStatusFilter]);
 
   // ============ NAV ITEMS ============
   const navItems = [
@@ -2469,6 +2394,22 @@ export default function App() {
 
   // ============ DASHBOARD VIEW ============
   const renderDashboard = () => {
+    // Calculate invoice summary inline
+    const today = new Date();
+    let outstanding = 0;
+    let overdue = 0;
+    let overdueAmount = 0;
+    invoices.forEach(inv => {
+      if (inv.status !== 'paid' && inv.status !== 'draft') {
+        outstanding += parseFloat(inv.total) || 0;
+        if (new Date(inv.dueDate) < today) {
+          overdue++;
+          overdueAmount += parseFloat(inv.total) || 0;
+        }
+      }
+    });
+    const invoiceSummary = { outstanding, overdue, overdueAmount };
+
     return (
     <>
       <div style={styles.header}>
@@ -2764,6 +2705,31 @@ export default function App() {
 
   // ============ INVOICES VIEW ============
   const renderInvoices = () => {
+    // Calculate invoice stats inline
+    const today = new Date();
+    const invoiceStats = {
+      total: invoices.length,
+      draft: invoices.filter(i => i.status === 'draft').length,
+      pending: invoices.filter(i => i.status === 'pending' || i.status === 'sent').length,
+      paid: invoices.filter(i => i.status === 'paid').length,
+      overdue: invoices.filter(inv => new Date(inv.dueDate) < today && inv.status !== 'paid' && inv.status !== 'draft').length,
+      totalOutstanding: invoices.filter(i => i.status !== 'paid').reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0),
+      totalPaid: invoices.filter(i => i.status === 'paid').reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0),
+    };
+
+    // Filter invoices inline
+    let filteredInvoices = [...invoices];
+    if (invoiceStatusFilter !== 'all') {
+      if (invoiceStatusFilter === 'overdue') {
+        filteredInvoices = filteredInvoices.filter(inv => 
+          new Date(inv.dueDate) < today && inv.status !== 'paid' && inv.status !== 'draft'
+        );
+      } else {
+        filteredInvoices = filteredInvoices.filter(inv => inv.status === invoiceStatusFilter);
+      }
+    }
+    filteredInvoices = filteredInvoices.sort((a, b) => new Date(b.invoiceDate) - new Date(a.invoiceDate));
+
     const getStatusColor = (status) => {
       switch (status) {
         case 'draft': return colors.gray400;
@@ -2777,7 +2743,6 @@ export default function App() {
 
     const getDaysOverdue = (dueDate, status) => {
       if (status === 'paid' || status === 'draft') return null;
-      const today = new Date();
       const due = new Date(dueDate);
       const diff = Math.floor((today - due) / (1000 * 60 * 60 * 24));
       return diff > 0 ? diff : null;
