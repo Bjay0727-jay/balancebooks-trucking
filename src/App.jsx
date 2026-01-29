@@ -286,26 +286,46 @@ const useMultiSelect = (items = []) => {
     });
   }, []);
 
-  const toggleAll = useCallback(() => {
-    if (allSelected) {
+  // Check if all items in a list are selected (supports filtered lists)
+  const isAllSelected = useCallback((itemList) => {
+    const checkItems = itemList || items;
+    if (checkItems.length === 0) return false;
+    return checkItems.every(item => selectedIds.has(item.id));
+  }, [items, selectedIds]);
+
+  // Toggle all items in a list (supports filtered lists)
+  const toggleAll = useCallback((itemList) => {
+    const checkItems = itemList || items;
+    const allChecked = checkItems.every(item => selectedIds.has(item.id));
+    if (allChecked) {
       setSelectedIds(prev => {
         const next = new Set(prev);
-        items.forEach(item => next.delete(item.id));
+        checkItems.forEach(item => next.delete(item.id));
         return next;
       });
     } else {
       setSelectedIds(prev => {
         const next = new Set(prev);
-        items.forEach(item => next.add(item.id));
+        checkItems.forEach(item => next.add(item.id));
         return next;
       });
     }
-  }, [items, allSelected]);
+  }, [items, selectedIds]);
+
+  // Alias for toggle
+  const toggle = useCallback((id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
   const isSelected = useCallback((id) => selectedIds.has(id), [selectedIds]);
 
-  return { selectedIds, selectedCount: selectedIds.size, allSelected, someSelected, isSelected, toggleItem, toggleAll, clearSelection, setSelectedIds };
+  return { selectedIds, selectedCount: selectedIds.size, allSelected, someSelected, isSelected, isAllSelected, toggle, toggleItem, toggleAll, clearSelection, setSelectedIds };
 };
 
 // ============ EXPORT TO CSV ============
