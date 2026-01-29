@@ -9,7 +9,6 @@ import {
   settingsDB,
   driversDB,
   trucksDB,
-  invoicesDB,
   exportAllData,
   importAllData,
   clearAllData
@@ -17,7 +16,7 @@ import {
 import { migrateFromLocalStorage, loadFromIndexedDB, needsMigration } from './db/migration';
 
 // ============ CONSTANTS ============
-const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.1.0';
+const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.0.0';
 
 // Cache version for force refresh (matches BalanceBooks Pro pattern)
 const CACHE_VERSION = '2.0.0';
@@ -286,32 +285,26 @@ const useMultiSelect = (items = []) => {
     });
   }, []);
 
-  const toggle = toggleItem; // Alias for compatibility
-
-  const toggleAll = useCallback((itemsToToggle) => {
-    setSelectedIds(prev => {
-      const checkItems = itemsToToggle || items;
-      const allChecked = checkItems.length > 0 && checkItems.every(item => prev.has(item.id));
-      const next = new Set(prev);
-      if (allChecked) {
-        checkItems.forEach(item => next.delete(item.id));
-      } else {
-        checkItems.forEach(item => next.add(item.id));
-      }
-      return next;
-    });
-  }, [items]);
-
-  const isAllSelected = useCallback((itemsToCheck) => {
-    const checkItems = itemsToCheck || items;
-    if (!checkItems || checkItems.length === 0) return false;
-    return checkItems.every(item => selectedIds.has(item.id));
-  }, [items, selectedIds]);
+  const toggleAll = useCallback(() => {
+    if (allSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        items.forEach(item => next.delete(item.id));
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        items.forEach(item => next.add(item.id));
+        return next;
+      });
+    }
+  }, [items, allSelected]);
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
   const isSelected = useCallback((id) => selectedIds.has(id), [selectedIds]);
 
-  return { selectedIds, selectedCount: selectedIds.size, allSelected, someSelected, isSelected, isAllSelected, toggle, toggleItem, toggleAll, clearSelection, setSelectedIds };
+  return { selectedIds, selectedCount: selectedIds.size, allSelected, someSelected, isSelected, toggleItem, toggleAll, clearSelection, setSelectedIds };
 };
 
 // ============ EXPORT TO CSV ============
@@ -791,13 +784,6 @@ export default function App() {
   const [perDiemDays, setPerDiemDays] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [trucks, setTrucks] = useState([]);
-  const [invoices, setInvoices] = useState([]);
-
-  // Invoice Modal state
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [editingInvoice, setEditingInvoice] = useState(null);
-  const [invoiceFromLoad, setInvoiceFromLoad] = useState(null);
-  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('all');
 
   // ============ SETTINGS STATE (NEW - matches Pro) ============
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
@@ -844,12 +830,11 @@ export default function App() {
         setLastBackupDate(data.lastBackup ?? null);
         setNotificationsEnabled(data.notifications ?? false);
         
-        // Load drivers, trucks, and invoices - now included in loadFromIndexedDB
+        // Load drivers and trucks (v2.0 feature) - now included in loadFromIndexedDB
         setDrivers(data.drivers || []);
         setTrucks(data.trucks || []);
-        setInvoices(data.invoices || []);
         
-        console.log(`[BalanceBooks Trucking] Loaded ${data.loads?.length || 0} loads, ${data.fuelEntries?.length || 0} fuel entries, ${data.drivers?.length || 0} drivers, ${data.trucks?.length || 0} trucks, ${data.invoices?.length || 0} invoices`);
+        console.log(`[BalanceBooks Trucking] Loaded ${data.loads?.length || 0} loads, ${data.fuelEntries?.length || 0} fuel entries, ${data.drivers?.length || 0} drivers, ${data.trucks?.length || 0} trucks`);
         
         setTimeout(() => {
           initialLoadComplete.current = true;
@@ -941,15 +926,6 @@ export default function App() {
       console.error('[IndexedDB] Failed to save trucks:', err)
     );
   }, [trucks]);
-
-  // Persist invoices to IndexedDB
-  useEffect(() => {
-    if (!initialLoadComplete.current) return;
-    invoicesDB.replaceAll(invoices).catch(err => 
-      console.error('[IndexedDB] Failed to save invoices:', err)
-    );
-  }, [invoices]);
-
   // ============================================
   // AUTO-BACKUP & NOTIFICATIONS (NEW - matches Pro)
   // ============================================
@@ -1317,7 +1293,6 @@ export default function App() {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'loads', label: 'Loads', icon: '🚛' },
-    { id: 'invoices', label: 'Invoices', icon: '📄' },
     { id: 'fuel', label: 'Fuel Log', icon: '⛽' },
     { id: 'drivers', label: 'Drivers', icon: '👤' },
     { id: 'trucks', label: 'Trucks', icon: '🚚' },
@@ -1333,7 +1308,6 @@ export default function App() {
   const expensesSelect = useMultiSelect(expenses);
   const driversSelect = useMultiSelect(drivers);
   const trucksSelect = useMultiSelect(trucks);
-  const invoicesSelect = useMultiSelect(invoices);
 
   // ============ LOAD MODAL ============
   const LoadModal = () => {
@@ -2642,284 +2616,6 @@ export default function App() {
     );
   };
 
-  // ============ INVOICES VIEW ============
-  const renderInvoices = () => {
-    const today = new Date();
-    
-    // Calculate stats inline (no hooks)
-    const invoiceStats = {
-      total: invoices.length,
-      draft: invoices.filter(i => i.status === 'draft').length,
-      pending: invoices.filter(i => i.status === 'pending' || i.status === 'sent').length,
-      paid: invoices.filter(i => i.status === 'paid').length,
-      overdue: invoices.filter(inv => new Date(inv.dueDate) < today && inv.status !== 'paid' && inv.status !== 'draft').length,
-      totalOutstanding: invoices.filter(i => i.status !== 'paid').reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0),
-    };
-
-    // Filter invoices inline
-    let filteredList = [...invoices];
-    if (invoiceStatusFilter !== 'all') {
-      if (invoiceStatusFilter === 'overdue') {
-        filteredList = filteredList.filter(inv => new Date(inv.dueDate) < today && inv.status !== 'paid' && inv.status !== 'draft');
-      } else {
-        filteredList = filteredList.filter(inv => inv.status === invoiceStatusFilter);
-      }
-    }
-    filteredList.sort((a, b) => new Date(b.invoiceDate) - new Date(a.invoiceDate));
-
-    const getStatusColor = (status) => {
-      const statusColors = { draft: colors.gray400, pending: colors.yellow, sent: colors.blue, paid: colors.green, overdue: colors.red };
-      return statusColors[status] || colors.gray400;
-    };
-
-    const getDaysOverdue = (dueDate, status) => {
-      if (status === 'paid' || status === 'draft') return null;
-      const diff = Math.floor((today - new Date(dueDate)) / (1000 * 60 * 60 * 24));
-      return diff > 0 ? diff : null;
-    };
-
-    return (
-      <>
-        <div style={styles.header}>
-          <h1 style={styles.pageTitle}>Invoices</h1>
-          <p style={styles.pageSubtitle}>Create, send, and track payment for your loads</p>
-        </div>
-
-        {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 24 }}>
-          <div style={{ ...styles.statCard, cursor: 'pointer', border: invoiceStatusFilter === 'all' ? `2px solid ${colors.teal}` : 'none' }} onClick={() => setInvoiceStatusFilter('all')}>
-            <div style={styles.statLabel}>Total</div>
-            <div style={styles.statValue(colors.white)}>{invoiceStats.total}</div>
-          </div>
-          <div style={{ ...styles.statCard, cursor: 'pointer', border: invoiceStatusFilter === 'pending' ? `2px solid ${colors.yellow}` : 'none' }} onClick={() => setInvoiceStatusFilter('pending')}>
-            <div style={styles.statLabel}>Pending</div>
-            <div style={styles.statValue(colors.yellow)}>{invoiceStats.pending}</div>
-          </div>
-          <div style={{ ...styles.statCard, cursor: 'pointer', border: invoiceStatusFilter === 'paid' ? `2px solid ${colors.green}` : 'none' }} onClick={() => setInvoiceStatusFilter('paid')}>
-            <div style={styles.statLabel}>Paid</div>
-            <div style={styles.statValue(colors.green)}>{invoiceStats.paid}</div>
-          </div>
-          <div style={{ ...styles.statCard, cursor: 'pointer', border: invoiceStatusFilter === 'overdue' ? `2px solid ${colors.red}` : 'none' }} onClick={() => setInvoiceStatusFilter('overdue')}>
-            <div style={styles.statLabel}>Overdue</div>
-            <div style={styles.statValue(colors.red)}>{invoiceStats.overdue}</div>
-          </div>
-          <div style={styles.statCard}>
-            <div style={styles.statLabel}>Outstanding</div>
-            <div style={styles.statValue(colors.orange)}>{formatCurrency(invoiceStats.totalOutstanding)}</div>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
-          <button style={styles.btn('primary')} onClick={() => { setEditingInvoice(null); setInvoiceFromLoad(null); setShowInvoiceModal(true); }}>
-            ➕ New Invoice
-          </button>
-          {invoicesSelect.selectedCount > 0 && (
-            <button style={styles.btn('danger')} onClick={deleteSelectedInvoices}>🗑️ Delete ({invoicesSelect.selectedCount})</button>
-          )}
-        </div>
-
-        {/* Table */}
-        <div style={styles.card}>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}><input type="checkbox" checked={invoicesSelect.isAllSelected(filteredList)} onChange={() => invoicesSelect.toggleAll(filteredList)} /></th>
-                <th style={styles.th}>Invoice #</th>
-                <th style={styles.th}>Date</th>
-                <th style={styles.th}>Customer</th>
-                <th style={styles.th}>Amount</th>
-                <th style={styles.th}>Due</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredList.length === 0 ? (
-                <tr><td colSpan="8" style={{ ...styles.td, textAlign: 'center', padding: 40, color: colors.gray400 }}>No invoices yet</td></tr>
-              ) : filteredList.map(inv => {
-                const daysOverdue = getDaysOverdue(inv.dueDate, inv.status);
-                const displayStatus = daysOverdue ? 'overdue' : inv.status;
-                return (
-                  <tr key={inv.id} style={{ cursor: 'pointer' }} onClick={() => { setEditingInvoice(inv); setShowInvoiceModal(true); }}>
-                    <td style={styles.td} onClick={e => e.stopPropagation()}><input type="checkbox" checked={invoicesSelect.selectedIds.has(inv.id)} onChange={() => invoicesSelect.toggle(inv.id)} /></td>
-                    <td style={{ ...styles.td, fontWeight: 600, color: colors.teal }}>{inv.invoiceNumber}</td>
-                    <td style={styles.td}>{inv.invoiceDate}</td>
-                    <td style={styles.td}>{inv.billTo?.name || '-'}</td>
-                    <td style={{ ...styles.td, fontWeight: 600, color: colors.green }}>{formatCurrency(inv.total)}</td>
-                    <td style={styles.td}>{inv.dueDate}{daysOverdue && <span style={{ color: colors.red, fontSize: 11, marginLeft: 6 }}>({daysOverdue}d)</span>}</td>
-                    <td style={styles.td}><span style={{ background: getStatusColor(displayStatus) + '25', color: getStatusColor(displayStatus), padding: '4px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>{displayStatus}</span></td>
-                    <td style={styles.td} onClick={e => e.stopPropagation()}>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        {inv.status !== 'paid' && <button style={{ background: colors.green + '20', border: `1px solid ${colors.green}40`, color: colors.green, padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }} onClick={() => markInvoicePaid(inv.id)}>✓ Paid</button>}
-                        <button style={{ background: colors.red + '20', border: 'none', color: colors.red, padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12 }} onClick={() => deleteInvoice(inv.id)}>🗑️</button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Uninvoiced Loads */}
-        {(() => {
-          const invoicedLoadIds = new Set(invoices.map(inv => inv.loadId).filter(Boolean));
-          const uninvoicedLoads = loads.filter(load => !invoicedLoadIds.has(load.id) && load.rate > 0);
-          if (uninvoicedLoads.length === 0) return null;
-          return (
-            <div style={{ marginTop: 32 }}>
-              <h3 style={{ color: colors.white, marginBottom: 16 }}>📦 Uninvoiced Loads <span style={{ background: colors.orange + '30', color: colors.orange, padding: '4px 12px', borderRadius: 20, fontSize: 14 }}>{uninvoicedLoads.length}</span></h3>
-              <div style={styles.card}>
-                <table style={styles.table}>
-                  <thead><tr><th style={styles.th}>Date</th><th style={styles.th}>Load #</th><th style={styles.th}>Customer</th><th style={styles.th}>Rate</th><th style={styles.th}>Action</th></tr></thead>
-                  <tbody>
-                    {uninvoicedLoads.slice(0, 10).map(load => (
-                      <tr key={load.id}>
-                        <td style={styles.td}>{load.date}</td>
-                        <td style={styles.td}>{load.loadNumber || '-'}</td>
-                        <td style={styles.td}>{load.broker || '-'}</td>
-                        <td style={{ ...styles.td, fontWeight: 600, color: colors.green }}>{formatCurrency(load.rate)}</td>
-                        <td style={styles.td}><button style={styles.btn('primary')} onClick={() => createInvoiceFromLoad(load)}>📄 Create Invoice</button></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          );
-        })()}
-      </>
-    );
-  };
-
-  // ============ INVOICE MODAL ============
-  const InvoiceModal = () => {
-    const initialInvoice = invoiceFromLoad || editingInvoice || {
-      id: uid(), invoiceNumber: generateInvoiceNumber(), loadId: '', loadNumber: '',
-      billTo: { name: '', address: '', city: '', state: '', zip: '', email: '', phone: '' },
-      invoiceDate: new Date().toISOString().split('T')[0],
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      terms: 'Net 30',
-      lineItems: [{ description: '', quantity: 1, rate: 0, amount: 0 }],
-      subtotal: 0, taxRate: 0, taxAmount: 0, total: 0,
-      status: 'draft', paidDate: null, paidAmount: 0, notes: '',
-    };
-    
-    const [form, setForm] = useState(initialInvoice);
-    
-    useEffect(() => {
-      if (invoiceFromLoad) setForm(invoiceFromLoad);
-      else if (editingInvoice) setForm(editingInvoice);
-    }, []);
-
-    const updateLineItem = (index, field, value) => {
-      const newItems = [...form.lineItems];
-      newItems[index] = { ...newItems[index], [field]: value };
-      if (field === 'quantity' || field === 'rate') {
-        newItems[index].amount = (parseFloat(newItems[index].quantity) || 0) * (parseFloat(newItems[index].rate) || 0);
-      }
-      const subtotal = newItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-      const taxAmount = subtotal * (parseFloat(form.taxRate) || 0) / 100;
-      setForm({ ...form, lineItems: newItems, subtotal, taxAmount, total: subtotal + taxAmount });
-    };
-
-    const addLineItem = () => setForm({ ...form, lineItems: [...form.lineItems, { description: '', quantity: 1, rate: 0, amount: 0 }] });
-    
-    const removeLineItem = (index) => {
-      if (form.lineItems.length <= 1) return;
-      const newItems = form.lineItems.filter((_, i) => i !== index);
-      const subtotal = newItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-      const taxAmount = subtotal * (parseFloat(form.taxRate) || 0) / 100;
-      setForm({ ...form, lineItems: newItems, subtotal, taxAmount, total: subtotal + taxAmount });
-    };
-
-    const handleSubmit = (e) => { e.preventDefault(); saveInvoice(form); };
-
-    const getStatusColor = (status) => {
-      const statusColors = { draft: colors.gray400, pending: colors.yellow, sent: colors.blue, paid: colors.green, overdue: colors.red };
-      return statusColors[status] || colors.gray400;
-    };
-
-    return (
-      <div style={styles.modal} onClick={() => { setShowInvoiceModal(false); setEditingInvoice(null); setInvoiceFromLoad(null); }}>
-        <div style={{ ...styles.modalContent, maxWidth: 800 }} onClick={e => e.stopPropagation()}>
-          <h2 style={{ color: colors.white, marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
-            📄 {editingInvoice ? 'Edit Invoice' : 'Create Invoice'}
-            <span style={{ background: getStatusColor(form.status) + '30', color: getStatusColor(form.status), padding: '4px 12px', borderRadius: 16, fontSize: 14, fontWeight: 600 }}>{form.status}</span>
-          </h2>
-          
-          <form onSubmit={handleSubmit}>
-            {/* Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
-              <div><label style={styles.label}>Invoice #</label><input style={styles.input} value={form.invoiceNumber} onChange={e => setForm({ ...form, invoiceNumber: e.target.value })} required /></div>
-              <div><label style={styles.label}>Date</label><input type="date" style={styles.input} value={form.invoiceDate} onChange={e => setForm({ ...form, invoiceDate: e.target.value })} required /></div>
-              <div><label style={styles.label}>Due Date</label><input type="date" style={styles.input} value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} required /></div>
-              <div><label style={styles.label}>Status</label><select style={styles.select} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}><option value="draft">Draft</option><option value="pending">Pending</option><option value="sent">Sent</option><option value="paid">Paid</option></select></div>
-            </div>
-
-            {/* Bill To */}
-            <div style={{ background: colors.navyLight, padding: 16, borderRadius: 12, marginBottom: 20, border: `1px solid ${colors.gray700}` }}>
-              <label style={{ ...styles.label, marginBottom: 12, display: 'block' }}>📬 Bill To</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-                <input style={styles.input} placeholder="Company/Name *" value={form.billTo.name} onChange={e => setForm({ ...form, billTo: { ...form.billTo, name: e.target.value } })} required />
-                <input style={styles.input} placeholder="Email" value={form.billTo.email} onChange={e => setForm({ ...form, billTo: { ...form.billTo, email: e.target.value } })} />
-                <input style={{ ...styles.input, gridColumn: 'span 2' }} placeholder="Address" value={form.billTo.address} onChange={e => setForm({ ...form, billTo: { ...form.billTo, address: e.target.value } })} />
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 8, gridColumn: 'span 2' }}>
-                  <input style={styles.input} placeholder="City" value={form.billTo.city} onChange={e => setForm({ ...form, billTo: { ...form.billTo, city: e.target.value } })} />
-                  <input style={styles.input} placeholder="State" value={form.billTo.state} onChange={e => setForm({ ...form, billTo: { ...form.billTo, state: e.target.value } })} />
-                  <input style={styles.input} placeholder="ZIP" value={form.billTo.zip} onChange={e => setForm({ ...form, billTo: { ...form.billTo, zip: e.target.value } })} />
-                </div>
-              </div>
-            </div>
-
-            {/* Line Items */}
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <label style={styles.label}>📋 Line Items</label>
-                <button type="button" onClick={addLineItem} style={{ ...styles.btn('secondary'), padding: '4px 10px', fontSize: 12 }}>➕ Add</button>
-              </div>
-              <div style={{ background: colors.navyLight, borderRadius: 12, border: `1px solid ${colors.gray700}` }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1fr 30px', gap: 8, padding: '10px 12px', background: colors.navyDark, fontSize: 11, color: colors.gray400, fontWeight: 600 }}>
-                  <div>Description</div><div style={{ textAlign: 'right' }}>Qty</div><div style={{ textAlign: 'right' }}>Rate</div><div style={{ textAlign: 'right' }}>Amount</div><div></div>
-                </div>
-                {form.lineItems.map((item, index) => (
-                  <div key={index} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1fr 30px', gap: 8, padding: '10px 12px', borderTop: `1px solid ${colors.gray700}` }}>
-                    <input style={{ ...styles.input, marginBottom: 0 }} value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} placeholder="Description" />
-                    <input type="number" style={{ ...styles.input, marginBottom: 0, textAlign: 'right' }} value={item.quantity} onChange={e => updateLineItem(index, 'quantity', e.target.value)} />
-                    <input type="number" step="0.01" style={{ ...styles.input, marginBottom: 0, textAlign: 'right' }} value={item.rate} onChange={e => updateLineItem(index, 'rate', e.target.value)} />
-                    <div style={{ background: colors.navyDark, padding: '10px 12px', borderRadius: 8, textAlign: 'right', color: colors.green, fontWeight: 600 }}>{formatCurrency(item.amount || 0)}</div>
-                    <button type="button" onClick={() => removeLineItem(index)} style={{ background: 'transparent', border: 'none', color: form.lineItems.length > 1 ? colors.red : colors.gray600, cursor: form.lineItems.length > 1 ? 'pointer' : 'not-allowed', fontSize: 14 }} disabled={form.lineItems.length <= 1}>✕</button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Totals */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-              <div style={{ width: 250 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', color: colors.gray300 }}><span>Subtotal</span><span>{formatCurrency(form.subtotal)}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderTop: `2px solid ${colors.gray600}`, marginTop: 6, color: colors.white, fontWeight: 700, fontSize: 18 }}><span>Total</span><span style={{ color: colors.green }}>{formatCurrency(form.total)}</span></div>
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div style={{ marginBottom: 20 }}>
-              <label style={styles.label}>Notes</label>
-              <textarea style={{ ...styles.input, height: 60, resize: 'vertical' }} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Additional notes..." />
-            </div>
-
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => { setShowInvoiceModal(false); setEditingInvoice(null); setInvoiceFromLoad(null); }} style={styles.btn('secondary')}>Cancel</button>
-              <button type="submit" style={styles.btn('primary')}>💾 Save Invoice</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
-
   // ============ FUEL VIEW ============
   const renderFuel = () => (
     <>
@@ -3516,78 +3212,6 @@ export default function App() {
       setTrucks(prev => prev.filter(t => !trucksSelect.selectedIds.has(t.id)));
       trucksSelect.clearSelection();
     }
-  };
-
-  // ============ INVOICE CRUD FUNCTIONS ============
-  const generateInvoiceNumber = () => {
-    const year = new Date().getFullYear();
-    const existingNumbers = invoices
-      .map(inv => inv.invoiceNumber)
-      .filter(n => n && n.startsWith(`INV-${year}`))
-      .map(n => parseInt(n.split('-')[2]) || 0);
-    const nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
-    return `INV-${year}-${String(nextNumber).padStart(4, '0')}`;
-  };
-
-  const createInvoiceFromLoad = (load) => {
-    const broker = load.broker || 'Customer';
-    const origin = load.stops?.[0]?.location || 'Origin';
-    const dest = load.stops?.[load.stops?.length - 1]?.location || 'Destination';
-    
-    const newInvoice = {
-      id: uid(),
-      invoiceNumber: generateInvoiceNumber(),
-      loadId: load.id,
-      loadNumber: load.loadNumber || '',
-      billTo: { name: broker, address: '', city: '', state: '', zip: '', email: '', phone: '' },
-      invoiceDate: new Date().toISOString().split('T')[0],
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      terms: 'Net 30',
-      lineItems: [{ description: `Freight: ${origin} → ${dest}`, quantity: 1, rate: parseFloat(load.rate) || 0, amount: parseFloat(load.rate) || 0 }],
-      subtotal: parseFloat(load.rate) || 0,
-      taxRate: 0,
-      taxAmount: 0,
-      total: parseFloat(load.rate) || 0,
-      status: 'pending',
-      paidDate: null,
-      paidAmount: 0,
-      notes: `Load #: ${load.loadNumber || 'N/A'}\nDate: ${load.date}\nMiles: ${load.loadedMiles || 0}`,
-      createdAt: new Date().toISOString(),
-    };
-    
-    setInvoiceFromLoad(newInvoice);
-    setEditingInvoice(null);
-    setShowInvoiceModal(true);
-  };
-
-  const saveInvoice = (invoice) => {
-    if (editingInvoice) {
-      setInvoices(prev => prev.map(inv => inv.id === invoice.id ? { ...invoice, updatedAt: new Date().toISOString() } : inv));
-    } else {
-      setInvoices(prev => [...prev, { ...invoice, id: invoice.id || uid(), createdAt: new Date().toISOString() }]);
-    }
-    setShowInvoiceModal(false);
-    setEditingInvoice(null);
-    setInvoiceFromLoad(null);
-  };
-
-  const deleteInvoice = (id) => {
-    if (confirm('Delete this invoice?')) {
-      setInvoices(prev => prev.filter(inv => inv.id !== id));
-    }
-  };
-
-  const deleteSelectedInvoices = () => {
-    if (confirm(`Delete ${invoicesSelect.selectedCount} invoices?`)) {
-      setInvoices(prev => prev.filter(inv => !invoicesSelect.selectedIds.has(inv.id)));
-      invoicesSelect.clearSelection();
-    }
-  };
-
-  const markInvoicePaid = (id) => {
-    setInvoices(prev => prev.map(inv => 
-      inv.id === id ? { ...inv, status: 'paid', paidDate: new Date().toISOString().split('T')[0], paidAmount: inv.total } : inv
-    ));
   };
 
   // ============ EXPORT FUNCTIONS ============
@@ -4873,7 +4497,6 @@ export default function App() {
       <main style={styles.main(sidebarCollapsed)}>
         {activeTab === 'dashboard' && renderDashboard()}
         {activeTab === 'loads' && renderLoads()}
-        {activeTab === 'invoices' && renderInvoices()}
         {activeTab === 'fuel' && renderFuel()}
         {activeTab === 'drivers' && renderDrivers()}
         {activeTab === 'trucks' && renderTrucks()}
@@ -4885,7 +4508,6 @@ export default function App() {
 
       {/* Modals */}
       {showLoadModal && <LoadModal />}
-      {showInvoiceModal && <InvoiceModal />}
       {showFuelModal && <FuelModal />}
       {showFuelImport && <FuelImportModal />}
       {showIFTAModal && <IFTAModal />}
