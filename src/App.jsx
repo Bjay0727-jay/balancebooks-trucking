@@ -2527,6 +2527,133 @@ export default function App() {
         </div>
       </div>
 
+      {/* Load Status Pipeline */}
+      <div style={styles.card}>
+        <div style={styles.cardTitle}>
+          <span>📊 Load Pipeline</span>
+          <button 
+            style={styles.btn('secondary')} 
+            onClick={() => setActiveTab('loads')}
+          >
+            View All Loads →
+          </button>
+        </div>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 0,
+          background: colors.navyDark,
+          borderRadius: 16,
+          padding: 8,
+          overflow: 'hidden',
+        }}>
+          {LOAD_STATUS_ORDER.map((status, index) => {
+            const config = LOAD_STATUS_CONFIG[status];
+            const count = loads.filter(l => (l.status || 'pending') === status).length;
+            const revenue = loads
+              .filter(l => (l.status || 'pending') === status)
+              .reduce((sum, l) => sum + (parseFloat(l.rate) || 0), 0);
+            const isLast = index === LOAD_STATUS_ORDER.length - 1;
+            
+            return (
+              <div 
+                key={status}
+                onClick={() => {
+                  setLoadStatusFilter(status);
+                  setActiveTab('loads');
+                }}
+                style={{ 
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  padding: '20px 12px',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  background: count > 0 ? config.bgColor : 'transparent',
+                  borderRadius: 12,
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <div style={{ fontSize: 24, marginBottom: 8 }}>{config.icon}</div>
+                <div style={{ 
+                  fontSize: 28, 
+                  fontWeight: 800, 
+                  color: count > 0 ? config.color : colors.gray600,
+                  marginBottom: 4,
+                }}>
+                  {count}
+                </div>
+                <div style={{ 
+                  fontSize: 12, 
+                  fontWeight: 600,
+                  color: count > 0 ? config.color : colors.gray600,
+                  marginBottom: 4,
+                }}>
+                  {config.label}
+                </div>
+                {count > 0 && (
+                  <div style={{ fontSize: 11, color: colors.gray400 }}>
+                    {formatCurrency(revenue)}
+                  </div>
+                )}
+                {/* Arrow connector */}
+                {!isLast && (
+                  <div style={{
+                    position: 'absolute',
+                    right: -12,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: colors.gray600,
+                    fontSize: 20,
+                    zIndex: 1,
+                  }}>
+                    →
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {/* Summary row */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          marginTop: 16,
+          paddingTop: 16,
+          borderTop: `1px solid ${colors.gray700}`,
+        }}>
+          <div style={{ display: 'flex', gap: 24 }}>
+            <div>
+              <span style={{ color: colors.gray400, fontSize: 13 }}>Active Loads: </span>
+              <span style={{ color: colors.orange, fontWeight: 700 }}>
+                {loads.filter(l => !['delivered', 'paid'].includes(l.status || 'pending')).length}
+              </span>
+            </div>
+            <div>
+              <span style={{ color: colors.gray400, fontSize: 13 }}>Pending Revenue: </span>
+              <span style={{ color: colors.yellow, fontWeight: 700 }}>
+                {formatCurrency(
+                  loads
+                    .filter(l => (l.status || 'pending') !== 'paid')
+                    .reduce((sum, l) => sum + (parseFloat(l.rate) || 0), 0)
+                )}
+              </span>
+            </div>
+          </div>
+          <div>
+            <span style={{ color: colors.gray400, fontSize: 13 }}>Collected: </span>
+            <span style={{ color: colors.green, fontWeight: 700 }}>
+              {formatCurrency(
+                loads
+                  .filter(l => l.status === 'paid')
+                  .reduce((sum, l) => sum + (parseFloat(l.rate) || 0), 0)
+              )}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Deadhead Analysis Card */}
       <div style={styles.card}>
         <div style={styles.cardTitle}>
