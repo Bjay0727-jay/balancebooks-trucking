@@ -266,33 +266,32 @@ const formatCentsPerMile = (dollars) => {
 const useMultiSelect = (items = []) => {
   const [selectedIds, setSelectedIds] = useState(new Set());
 
-  // Calculate without useMemo - simpler and avoids Set dependency issues
-  const selectedCount = selectedIds.size;
-  const allSelected = items.length > 0 && items.every(item => selectedIds.has(item.id));
-  const someSelected = items.length > 0 && items.some(item => selectedIds.has(item.id)) && !allSelected;
+  const allSelected = useMemo(() => {
+    if (items.length === 0) return false;
+    return items.every(item => selectedIds.has(item.id));
+  }, [items, selectedIds]);
 
-  const toggle = (id) => {
+  const someSelected = useMemo(() => {
+    if (items.length === 0) return false;
+    const selectedCount = items.filter(item => selectedIds.has(item.id)).length;
+    return selectedCount > 0 && selectedCount < items.length;
+  }, [items, selectedIds]);
+
+  const toggleItem = useCallback((id) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
-  const toggleItem = toggle;
+  const toggle = toggleItem; // Alias for compatibility
 
-  const isAllSelected = (itemList) => {
-    const checkItems = itemList || items;
-    if (!checkItems || checkItems.length === 0) return false;
-    return checkItems.every(item => selectedIds.has(item.id));
-  };
-
-  const toggleAll = (itemList) => {
-    const checkItems = itemList || items;
-    if (!checkItems || checkItems.length === 0) return;
-    const allChecked = checkItems.every(item => selectedIds.has(item.id));
+  const toggleAll = useCallback((itemsToToggle) => {
     setSelectedIds(prev => {
+      const checkItems = itemsToToggle || items;
+      const allChecked = checkItems.length > 0 && checkItems.every(item => prev.has(item.id));
       const next = new Set(prev);
       if (allChecked) {
         checkItems.forEach(item => next.delete(item.id));
@@ -301,24 +300,18 @@ const useMultiSelect = (items = []) => {
       }
       return next;
     });
-  };
+  }, [items]);
 
-  const clearSelection = () => setSelectedIds(new Set());
-  const isSelected = (id) => selectedIds.has(id);
+  const isAllSelected = useCallback((itemsToCheck) => {
+    const checkItems = itemsToCheck || items;
+    if (!checkItems || checkItems.length === 0) return false;
+    return checkItems.every(item => selectedIds.has(item.id));
+  }, [items, selectedIds]);
 
-  return { 
-    selectedIds, 
-    selectedCount, 
-    allSelected, 
-    someSelected, 
-    isSelected, 
-    isAllSelected, 
-    toggle, 
-    toggleItem, 
-    toggleAll, 
-    clearSelection, 
-    setSelectedIds 
-  };
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+  const isSelected = useCallback((id) => selectedIds.has(id), [selectedIds]);
+
+  return { selectedIds, selectedCount: selectedIds.size, allSelected, someSelected, isSelected, isAllSelected, toggle, toggleItem, toggleAll, clearSelection, setSelectedIds };
 };
 
 // ============ EXPORT TO CSV ============
@@ -799,12 +792,12 @@ export default function App() {
   const [drivers, setDrivers] = useState([]);
   const [trucks, setTrucks] = useState([]);
   const [invoices, setInvoices] = useState([]);
-  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('all');
 
   // Invoice Modal state
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState(null);
-  const [invoiceFromLoad, setInvoiceFromLoad] = useState(null); // For creating invoice from load
+  const [invoiceFromLoad, setInvoiceFromLoad] = useState(null);
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('all');
 
   // ============ SETTINGS STATE (NEW - matches Pro) ============
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
@@ -851,7 +844,7 @@ export default function App() {
         setLastBackupDate(data.lastBackup ?? null);
         setNotificationsEnabled(data.notifications ?? false);
         
-        // Load drivers, trucks, and invoices (v2.0+ features)
+        // Load drivers, trucks, and invoices - now included in loadFromIndexedDB
         setDrivers(data.drivers || []);
         setTrucks(data.trucks || []);
         setInvoices(data.invoices || []);
@@ -949,7 +942,7 @@ export default function App() {
     );
   }, [trucks]);
 
-  // Persist invoices to IndexedDB (v2.1)
+  // Persist invoices to IndexedDB
   useEffect(() => {
     if (!initialLoadComplete.current) return;
     invoicesDB.replaceAll(invoices).catch(err => 
@@ -2393,24 +2386,7 @@ export default function App() {
   };
 
   // ============ DASHBOARD VIEW ============
-  const renderDashboard = () => {
-    // Calculate invoice summary inline
-    const today = new Date();
-    let outstanding = 0;
-    let overdue = 0;
-    let overdueAmount = 0;
-    invoices.forEach(inv => {
-      if (inv.status !== 'paid' && inv.status !== 'draft') {
-        outstanding += parseFloat(inv.total) || 0;
-        if (new Date(inv.dueDate) < today) {
-          overdue++;
-          overdueAmount += parseFloat(inv.total) || 0;
-        }
-      }
-    });
-    const invoiceSummary = { outstanding, overdue, overdueAmount };
-
-    return (
+  const renderDashboard = () => (
     <>
       <div style={styles.header}>
         <h1 style={styles.pageTitle}>Dashboard</h1>
@@ -2439,35 +2415,6 @@ export default function App() {
           <div style={styles.statLabel}>Profit/Mile</div>
         </div>
       </div>
-
-      {/* Invoice Summary */}
-      {(invoiceSummary.outstanding > 0 || invoiceSummary.overdue > 0) && (
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-          gap: 16, 
-          marginBottom: 24 
-        }}>
-          <div 
-            style={{ ...styles.statCard(colors.blue, true), cursor: 'pointer' }} 
-            onClick={() => setActiveTab('invoices')}
-          >
-            <div style={styles.statIcon}>📄</div>
-            <div style={styles.statValue(colors.blue)}>{formatCurrency(invoiceSummary.outstanding)}</div>
-            <div style={styles.statLabel}>Outstanding Invoices</div>
-          </div>
-          {invoiceSummary.overdue > 0 && (
-            <div 
-              style={{ ...styles.statCard(colors.red, true), cursor: 'pointer' }} 
-              onClick={() => setActiveTab('invoices')}
-            >
-              <div style={styles.statIcon}>⚠️</div>
-              <div style={styles.statValue(colors.red)}>{invoiceSummary.overdue}</div>
-              <div style={styles.statLabel}>Overdue ({formatCurrency(invoiceSummary.overdueAmount)})</div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Deadhead Analysis Card */}
       <div style={styles.card}>
@@ -2580,7 +2527,6 @@ export default function App() {
       </div>
     </>
   );
-  };
 
   // ============ LOADS VIEW ============
   const renderLoads = () => {
@@ -2663,13 +2609,6 @@ export default function App() {
                     <td style={{ ...styles.td, borderRadius: '0 14px 14px 0' }}>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button 
-                          onClick={() => createInvoiceFromLoad(load)}
-                          style={{ ...styles.btn('secondary'), padding: '8px 12px', fontSize: 13, background: colors.teal + '20', color: colors.teal }}
-                          title="Create Invoice"
-                        >
-                          📄
-                        </button>
-                        <button 
                           onClick={() => openEditLoad(load)}
                           style={{ ...styles.btn('secondary'), padding: '8px 12px', fontSize: 13 }}
                         >
@@ -2705,8 +2644,9 @@ export default function App() {
 
   // ============ INVOICES VIEW ============
   const renderInvoices = () => {
-    // Calculate invoice stats inline
     const today = new Date();
+    
+    // Calculate stats inline (no hooks)
     const invoiceStats = {
       total: invoices.length,
       draft: invoices.filter(i => i.status === 'draft').length,
@@ -2714,44 +2654,28 @@ export default function App() {
       paid: invoices.filter(i => i.status === 'paid').length,
       overdue: invoices.filter(inv => new Date(inv.dueDate) < today && inv.status !== 'paid' && inv.status !== 'draft').length,
       totalOutstanding: invoices.filter(i => i.status !== 'paid').reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0),
-      totalPaid: invoices.filter(i => i.status === 'paid').reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0),
     };
 
     // Filter invoices inline
-    let filteredInvoices = [...invoices];
+    let filteredList = [...invoices];
     if (invoiceStatusFilter !== 'all') {
       if (invoiceStatusFilter === 'overdue') {
-        filteredInvoices = filteredInvoices.filter(inv => 
-          new Date(inv.dueDate) < today && inv.status !== 'paid' && inv.status !== 'draft'
-        );
+        filteredList = filteredList.filter(inv => new Date(inv.dueDate) < today && inv.status !== 'paid' && inv.status !== 'draft');
       } else {
-        filteredInvoices = filteredInvoices.filter(inv => inv.status === invoiceStatusFilter);
+        filteredList = filteredList.filter(inv => inv.status === invoiceStatusFilter);
       }
     }
-    filteredInvoices = filteredInvoices.sort((a, b) => new Date(b.invoiceDate) - new Date(a.invoiceDate));
+    filteredList.sort((a, b) => new Date(b.invoiceDate) - new Date(a.invoiceDate));
 
     const getStatusColor = (status) => {
-      switch (status) {
-        case 'draft': return colors.gray400;
-        case 'pending': return colors.yellow;
-        case 'sent': return colors.blue;
-        case 'paid': return colors.green;
-        case 'overdue': return colors.red;
-        default: return colors.gray400;
-      }
+      const statusColors = { draft: colors.gray400, pending: colors.yellow, sent: colors.blue, paid: colors.green, overdue: colors.red };
+      return statusColors[status] || colors.gray400;
     };
 
     const getDaysOverdue = (dueDate, status) => {
       if (status === 'paid' || status === 'draft') return null;
-      const due = new Date(dueDate);
-      const diff = Math.floor((today - due) / (1000 * 60 * 60 * 24));
+      const diff = Math.floor((today - new Date(dueDate)) / (1000 * 60 * 60 * 24));
       return diff > 0 ? diff : null;
-    };
-
-    // Find associated load for an invoice
-    const getInvoiceLoad = (loadId) => {
-      if (!loadId) return null;
-      return loads.find(l => l.id === loadId);
     };
 
     return (
@@ -2761,10 +2685,10 @@ export default function App() {
           <p style={styles.pageSubtitle}>Create, send, and track payment for your loads</p>
         </div>
 
-        {/* Invoice Stats */}
+        {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 24 }}>
           <div style={{ ...styles.statCard, cursor: 'pointer', border: invoiceStatusFilter === 'all' ? `2px solid ${colors.teal}` : 'none' }} onClick={() => setInvoiceStatusFilter('all')}>
-            <div style={styles.statLabel}>Total Invoices</div>
+            <div style={styles.statLabel}>Total</div>
             <div style={styles.statValue(colors.white)}>{invoiceStats.total}</div>
           </div>
           <div style={{ ...styles.statCard, cursor: 'pointer', border: invoiceStatusFilter === 'pending' ? `2px solid ${colors.yellow}` : 'none' }} onClick={() => setInvoiceStatusFilter('pending')}>
@@ -2785,199 +2709,214 @@ export default function App() {
           </div>
         </div>
 
-        {/* Actions Bar */}
+        {/* Actions */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
-          <button 
-            style={styles.btn('primary')} 
-            onClick={() => { setEditingInvoice(null); setInvoiceFromLoad(null); setShowInvoiceModal(true); }}
-          >
+          <button style={styles.btn('primary')} onClick={() => { setEditingInvoice(null); setInvoiceFromLoad(null); setShowInvoiceModal(true); }}>
             ➕ New Invoice
           </button>
           {invoicesSelect.selectedCount > 0 && (
-            <button style={styles.btn('danger')} onClick={deleteSelectedInvoices}>
-              🗑️ Delete ({invoicesSelect.selectedCount})
-            </button>
+            <button style={styles.btn('danger')} onClick={deleteSelectedInvoices}>🗑️ Delete ({invoicesSelect.selectedCount})</button>
           )}
         </div>
 
-        {/* Invoices Table */}
+        {/* Table */}
         <div style={styles.card}>
           <table style={styles.table}>
             <thead>
               <tr>
-                <th style={styles.th}>
-                  <input 
-                    type="checkbox" 
-                    checked={invoicesSelect.isAllSelected(filteredInvoices)}
-                    onChange={() => invoicesSelect.toggleAll(filteredInvoices)}
-                  />
-                </th>
+                <th style={styles.th}><input type="checkbox" checked={invoicesSelect.isAllSelected(filteredList)} onChange={() => invoicesSelect.toggleAll(filteredList)} /></th>
                 <th style={styles.th}>Invoice #</th>
                 <th style={styles.th}>Date</th>
                 <th style={styles.th}>Customer</th>
-                <th style={styles.th}>Load Ref</th>
                 <th style={styles.th}>Amount</th>
-                <th style={styles.th}>Due Date</th>
+                <th style={styles.th}>Due</th>
                 <th style={styles.th}>Status</th>
                 <th style={styles.th}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredInvoices.length === 0 ? (
-                <tr>
-                  <td colSpan="9" style={{ ...styles.td, textAlign: 'center', padding: 40, color: colors.gray400 }}>
-                    {invoiceStatusFilter !== 'all' ? `No ${invoiceStatusFilter} invoices` : 'No invoices yet. Create your first invoice!'}
-                  </td>
-                </tr>
-              ) : (
-                filteredInvoices.map(invoice => {
-                  const daysOverdue = getDaysOverdue(invoice.dueDate, invoice.status);
-                  const displayStatus = daysOverdue && invoice.status !== 'paid' ? 'overdue' : invoice.status;
-                  
-                  return (
-                    <tr key={invoice.id} style={{ cursor: 'pointer' }} onClick={() => { setEditingInvoice(invoice); setShowInvoiceModal(true); }}>
-                      <td style={styles.td} onClick={e => e.stopPropagation()}>
-                        <input 
-                          type="checkbox"
-                          checked={invoicesSelect.selectedIds.has(invoice.id)}
-                          onChange={() => invoicesSelect.toggle(invoice.id)}
-                        />
-                      </td>
-                      <td style={{ ...styles.td, fontWeight: 600, color: colors.teal }}>{invoice.invoiceNumber}</td>
-                      <td style={styles.td}>{invoice.invoiceDate}</td>
-                      <td style={styles.td}>{invoice.billTo?.name || '-'}</td>
-                      <td style={styles.td}>{invoice.loadNumber || '-'}</td>
-                      <td style={{ ...styles.td, fontWeight: 600, color: colors.green }}>{formatCurrency(invoice.total)}</td>
-                      <td style={styles.td}>
-                        {invoice.dueDate}
-                        {daysOverdue && (
-                          <span style={{ color: colors.red, fontSize: 11, marginLeft: 6 }}>
-                            ({daysOverdue}d overdue)
-                          </span>
-                        )}
-                      </td>
-                      <td style={styles.td}>
-                        <span style={{
-                          background: getStatusColor(displayStatus) + '25',
-                          color: getStatusColor(displayStatus),
-                          padding: '4px 10px',
-                          borderRadius: 12,
-                          fontSize: 12,
-                          fontWeight: 600,
-                          textTransform: 'capitalize'
-                        }}>
-                          {displayStatus}
-                        </span>
-                      </td>
-                      <td style={styles.td} onClick={e => e.stopPropagation()}>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          {invoice.status !== 'paid' && (
-                            <button 
-                              style={{ 
-                                background: colors.green + '20', 
-                                border: `1px solid ${colors.green}40`,
-                                color: colors.green, 
-                                padding: '6px 10px', 
-                                borderRadius: 6, 
-                                cursor: 'pointer', 
-                                fontSize: 12,
-                                fontWeight: 600
-                              }} 
-                              onClick={() => markInvoicePaid(invoice.id)}
-                              title="Mark as Paid"
-                            >
-                              ✓ Paid
-                            </button>
-                          )}
-                          <button 
-                            style={{ 
-                              background: colors.red + '20', 
-                              border: 'none',
-                              color: colors.red, 
-                              padding: '6px 10px', 
-                              borderRadius: 6, 
-                              cursor: 'pointer', 
-                              fontSize: 12 
-                            }} 
-                            onClick={() => deleteInvoice(invoice.id)}
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
+              {filteredList.length === 0 ? (
+                <tr><td colSpan="8" style={{ ...styles.td, textAlign: 'center', padding: 40, color: colors.gray400 }}>No invoices yet</td></tr>
+              ) : filteredList.map(inv => {
+                const daysOverdue = getDaysOverdue(inv.dueDate, inv.status);
+                const displayStatus = daysOverdue ? 'overdue' : inv.status;
+                return (
+                  <tr key={inv.id} style={{ cursor: 'pointer' }} onClick={() => { setEditingInvoice(inv); setShowInvoiceModal(true); }}>
+                    <td style={styles.td} onClick={e => e.stopPropagation()}><input type="checkbox" checked={invoicesSelect.selectedIds.has(inv.id)} onChange={() => invoicesSelect.toggle(inv.id)} /></td>
+                    <td style={{ ...styles.td, fontWeight: 600, color: colors.teal }}>{inv.invoiceNumber}</td>
+                    <td style={styles.td}>{inv.invoiceDate}</td>
+                    <td style={styles.td}>{inv.billTo?.name || '-'}</td>
+                    <td style={{ ...styles.td, fontWeight: 600, color: colors.green }}>{formatCurrency(inv.total)}</td>
+                    <td style={styles.td}>{inv.dueDate}{daysOverdue && <span style={{ color: colors.red, fontSize: 11, marginLeft: 6 }}>({daysOverdue}d)</span>}</td>
+                    <td style={styles.td}><span style={{ background: getStatusColor(displayStatus) + '25', color: getStatusColor(displayStatus), padding: '4px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>{displayStatus}</span></td>
+                    <td style={styles.td} onClick={e => e.stopPropagation()}>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {inv.status !== 'paid' && <button style={{ background: colors.green + '20', border: `1px solid ${colors.green}40`, color: colors.green, padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }} onClick={() => markInvoicePaid(inv.id)}>✓ Paid</button>}
+                        <button style={{ background: colors.red + '20', border: 'none', color: colors.red, padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12 }} onClick={() => deleteInvoice(inv.id)}>🗑️</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
 
-        {/* Uninvoiced Loads Section */}
+        {/* Uninvoiced Loads */}
         {(() => {
           const invoicedLoadIds = new Set(invoices.map(inv => inv.loadId).filter(Boolean));
           const uninvoicedLoads = loads.filter(load => !invoicedLoadIds.has(load.id) && load.rate > 0);
-          
           if (uninvoicedLoads.length === 0) return null;
-          
           return (
             <div style={{ marginTop: 32 }}>
-              <h3 style={{ color: colors.white, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
-                📦 Uninvoiced Loads 
-                <span style={{ 
-                  background: colors.orange + '30', 
-                  color: colors.orange, 
-                  padding: '4px 12px', 
-                  borderRadius: 20, 
-                  fontSize: 14 
-                }}>
-                  {uninvoicedLoads.length}
-                </span>
-              </h3>
+              <h3 style={{ color: colors.white, marginBottom: 16 }}>📦 Uninvoiced Loads <span style={{ background: colors.orange + '30', color: colors.orange, padding: '4px 12px', borderRadius: 20, fontSize: 14 }}>{uninvoicedLoads.length}</span></h3>
               <div style={styles.card}>
                 <table style={styles.table}>
-                  <thead>
-                    <tr>
-                      <th style={styles.th}>Date</th>
-                      <th style={styles.th}>Load #</th>
-                      <th style={styles.th}>Customer</th>
-                      <th style={styles.th}>Route</th>
-                      <th style={styles.th}>Rate</th>
-                      <th style={styles.th}>Action</th>
-                    </tr>
-                  </thead>
+                  <thead><tr><th style={styles.th}>Date</th><th style={styles.th}>Load #</th><th style={styles.th}>Customer</th><th style={styles.th}>Rate</th><th style={styles.th}>Action</th></tr></thead>
                   <tbody>
                     {uninvoicedLoads.slice(0, 10).map(load => (
                       <tr key={load.id}>
                         <td style={styles.td}>{load.date}</td>
                         <td style={styles.td}>{load.loadNumber || '-'}</td>
                         <td style={styles.td}>{load.broker || '-'}</td>
-                        <td style={styles.td}>
-                          {load.stops?.[0]?.location || '?'} → {load.stops?.[load.stops?.length - 1]?.location || '?'}
-                        </td>
                         <td style={{ ...styles.td, fontWeight: 600, color: colors.green }}>{formatCurrency(load.rate)}</td>
-                        <td style={styles.td}>
-                          <button 
-                            style={styles.btn('primary')}
-                            onClick={() => createInvoiceFromLoad(load)}
-                          >
-                            📄 Create Invoice
-                          </button>
-                        </td>
+                        <td style={styles.td}><button style={styles.btn('primary')} onClick={() => createInvoiceFromLoad(load)}>📄 Create Invoice</button></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {uninvoicedLoads.length > 10 && (
-                  <div style={{ textAlign: 'center', padding: 16, color: colors.gray400 }}>
-                    Showing 10 of {uninvoicedLoads.length} uninvoiced loads
-                  </div>
-                )}
               </div>
             </div>
           );
         })()}
       </>
+    );
+  };
+
+  // ============ INVOICE MODAL ============
+  const InvoiceModal = () => {
+    const initialInvoice = invoiceFromLoad || editingInvoice || {
+      id: uid(), invoiceNumber: generateInvoiceNumber(), loadId: '', loadNumber: '',
+      billTo: { name: '', address: '', city: '', state: '', zip: '', email: '', phone: '' },
+      invoiceDate: new Date().toISOString().split('T')[0],
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      terms: 'Net 30',
+      lineItems: [{ description: '', quantity: 1, rate: 0, amount: 0 }],
+      subtotal: 0, taxRate: 0, taxAmount: 0, total: 0,
+      status: 'draft', paidDate: null, paidAmount: 0, notes: '',
+    };
+    
+    const [form, setForm] = useState(initialInvoice);
+    
+    useEffect(() => {
+      if (invoiceFromLoad) setForm(invoiceFromLoad);
+      else if (editingInvoice) setForm(editingInvoice);
+    }, []);
+
+    const updateLineItem = (index, field, value) => {
+      const newItems = [...form.lineItems];
+      newItems[index] = { ...newItems[index], [field]: value };
+      if (field === 'quantity' || field === 'rate') {
+        newItems[index].amount = (parseFloat(newItems[index].quantity) || 0) * (parseFloat(newItems[index].rate) || 0);
+      }
+      const subtotal = newItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+      const taxAmount = subtotal * (parseFloat(form.taxRate) || 0) / 100;
+      setForm({ ...form, lineItems: newItems, subtotal, taxAmount, total: subtotal + taxAmount });
+    };
+
+    const addLineItem = () => setForm({ ...form, lineItems: [...form.lineItems, { description: '', quantity: 1, rate: 0, amount: 0 }] });
+    
+    const removeLineItem = (index) => {
+      if (form.lineItems.length <= 1) return;
+      const newItems = form.lineItems.filter((_, i) => i !== index);
+      const subtotal = newItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+      const taxAmount = subtotal * (parseFloat(form.taxRate) || 0) / 100;
+      setForm({ ...form, lineItems: newItems, subtotal, taxAmount, total: subtotal + taxAmount });
+    };
+
+    const handleSubmit = (e) => { e.preventDefault(); saveInvoice(form); };
+
+    const getStatusColor = (status) => {
+      const statusColors = { draft: colors.gray400, pending: colors.yellow, sent: colors.blue, paid: colors.green, overdue: colors.red };
+      return statusColors[status] || colors.gray400;
+    };
+
+    return (
+      <div style={styles.modal} onClick={() => { setShowInvoiceModal(false); setEditingInvoice(null); setInvoiceFromLoad(null); }}>
+        <div style={{ ...styles.modalContent, maxWidth: 800 }} onClick={e => e.stopPropagation()}>
+          <h2 style={{ color: colors.white, marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
+            📄 {editingInvoice ? 'Edit Invoice' : 'Create Invoice'}
+            <span style={{ background: getStatusColor(form.status) + '30', color: getStatusColor(form.status), padding: '4px 12px', borderRadius: 16, fontSize: 14, fontWeight: 600 }}>{form.status}</span>
+          </h2>
+          
+          <form onSubmit={handleSubmit}>
+            {/* Header */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 20 }}>
+              <div><label style={styles.label}>Invoice #</label><input style={styles.input} value={form.invoiceNumber} onChange={e => setForm({ ...form, invoiceNumber: e.target.value })} required /></div>
+              <div><label style={styles.label}>Date</label><input type="date" style={styles.input} value={form.invoiceDate} onChange={e => setForm({ ...form, invoiceDate: e.target.value })} required /></div>
+              <div><label style={styles.label}>Due Date</label><input type="date" style={styles.input} value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} required /></div>
+              <div><label style={styles.label}>Status</label><select style={styles.select} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}><option value="draft">Draft</option><option value="pending">Pending</option><option value="sent">Sent</option><option value="paid">Paid</option></select></div>
+            </div>
+
+            {/* Bill To */}
+            <div style={{ background: colors.navyLight, padding: 16, borderRadius: 12, marginBottom: 20, border: `1px solid ${colors.gray700}` }}>
+              <label style={{ ...styles.label, marginBottom: 12, display: 'block' }}>📬 Bill To</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                <input style={styles.input} placeholder="Company/Name *" value={form.billTo.name} onChange={e => setForm({ ...form, billTo: { ...form.billTo, name: e.target.value } })} required />
+                <input style={styles.input} placeholder="Email" value={form.billTo.email} onChange={e => setForm({ ...form, billTo: { ...form.billTo, email: e.target.value } })} />
+                <input style={{ ...styles.input, gridColumn: 'span 2' }} placeholder="Address" value={form.billTo.address} onChange={e => setForm({ ...form, billTo: { ...form.billTo, address: e.target.value } })} />
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 8, gridColumn: 'span 2' }}>
+                  <input style={styles.input} placeholder="City" value={form.billTo.city} onChange={e => setForm({ ...form, billTo: { ...form.billTo, city: e.target.value } })} />
+                  <input style={styles.input} placeholder="State" value={form.billTo.state} onChange={e => setForm({ ...form, billTo: { ...form.billTo, state: e.target.value } })} />
+                  <input style={styles.input} placeholder="ZIP" value={form.billTo.zip} onChange={e => setForm({ ...form, billTo: { ...form.billTo, zip: e.target.value } })} />
+                </div>
+              </div>
+            </div>
+
+            {/* Line Items */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <label style={styles.label}>📋 Line Items</label>
+                <button type="button" onClick={addLineItem} style={{ ...styles.btn('secondary'), padding: '4px 10px', fontSize: 12 }}>➕ Add</button>
+              </div>
+              <div style={{ background: colors.navyLight, borderRadius: 12, border: `1px solid ${colors.gray700}` }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1fr 30px', gap: 8, padding: '10px 12px', background: colors.navyDark, fontSize: 11, color: colors.gray400, fontWeight: 600 }}>
+                  <div>Description</div><div style={{ textAlign: 'right' }}>Qty</div><div style={{ textAlign: 'right' }}>Rate</div><div style={{ textAlign: 'right' }}>Amount</div><div></div>
+                </div>
+                {form.lineItems.map((item, index) => (
+                  <div key={index} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1fr 30px', gap: 8, padding: '10px 12px', borderTop: `1px solid ${colors.gray700}` }}>
+                    <input style={{ ...styles.input, marginBottom: 0 }} value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} placeholder="Description" />
+                    <input type="number" style={{ ...styles.input, marginBottom: 0, textAlign: 'right' }} value={item.quantity} onChange={e => updateLineItem(index, 'quantity', e.target.value)} />
+                    <input type="number" step="0.01" style={{ ...styles.input, marginBottom: 0, textAlign: 'right' }} value={item.rate} onChange={e => updateLineItem(index, 'rate', e.target.value)} />
+                    <div style={{ background: colors.navyDark, padding: '10px 12px', borderRadius: 8, textAlign: 'right', color: colors.green, fontWeight: 600 }}>{formatCurrency(item.amount || 0)}</div>
+                    <button type="button" onClick={() => removeLineItem(index)} style={{ background: 'transparent', border: 'none', color: form.lineItems.length > 1 ? colors.red : colors.gray600, cursor: form.lineItems.length > 1 ? 'pointer' : 'not-allowed', fontSize: 14 }} disabled={form.lineItems.length <= 1}>✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Totals */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
+              <div style={{ width: 250 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', color: colors.gray300 }}><span>Subtotal</span><span>{formatCurrency(form.subtotal)}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderTop: `2px solid ${colors.gray600}`, marginTop: 6, color: colors.white, fontWeight: 700, fontSize: 18 }}><span>Total</span><span style={{ color: colors.green }}>{formatCurrency(form.total)}</span></div>
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={styles.label}>Notes</label>
+              <textarea style={{ ...styles.input, height: 60, resize: 'vertical' }} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Additional notes..." />
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => { setShowInvoiceModal(false); setEditingInvoice(null); setInvoiceFromLoad(null); }} style={styles.btn('secondary')}>Cancel</button>
+              <button type="submit" style={styles.btn('primary')}>💾 Save Invoice</button>
+            </div>
+          </form>
+        </div>
+      </div>
     );
   };
 
@@ -3600,45 +3539,18 @@ export default function App() {
       invoiceNumber: generateInvoiceNumber(),
       loadId: load.id,
       loadNumber: load.loadNumber || '',
-      
-      // Bill To (from broker/customer)
-      billTo: {
-        name: broker,
-        address: '',
-        city: '',
-        state: '',
-        zip: '',
-        email: '',
-        phone: ''
-      },
-      
-      // Invoice dates
+      billTo: { name: broker, address: '', city: '', state: '', zip: '', email: '', phone: '' },
       invoiceDate: new Date().toISOString().split('T')[0],
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Net 30
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       terms: 'Net 30',
-      
-      // Line items
-      lineItems: [
-        {
-          description: `Freight: ${origin} → ${dest}`,
-          quantity: 1,
-          rate: parseFloat(load.rate) || 0,
-          amount: parseFloat(load.rate) || 0
-        }
-      ],
-      
-      // Totals
+      lineItems: [{ description: `Freight: ${origin} → ${dest}`, quantity: 1, rate: parseFloat(load.rate) || 0, amount: parseFloat(load.rate) || 0 }],
       subtotal: parseFloat(load.rate) || 0,
       taxRate: 0,
       taxAmount: 0,
       total: parseFloat(load.rate) || 0,
-      
-      // Payment
       status: 'pending',
       paidDate: null,
       paidAmount: 0,
-      
-      // Meta
       notes: `Load #: ${load.loadNumber || 'N/A'}\nDate: ${load.date}\nMiles: ${load.loadedMiles || 0}`,
       createdAt: new Date().toISOString(),
     };
@@ -3649,19 +3561,14 @@ export default function App() {
   };
 
   const saveInvoice = (invoice) => {
-    try {
-      if (editingInvoice) {
-        setInvoices(prev => prev.map(inv => inv.id === invoice.id ? { ...invoice, updatedAt: new Date().toISOString() } : inv));
-      } else {
-        setInvoices(prev => [...prev, { ...invoice, id: invoice.id || uid(), createdAt: new Date().toISOString() }]);
-      }
-      setShowInvoiceModal(false);
-      setEditingInvoice(null);
-      setInvoiceFromLoad(null);
-    } catch (err) {
-      console.error('Error saving invoice:', err);
-      alert('Error saving invoice. Please try again.');
+    if (editingInvoice) {
+      setInvoices(prev => prev.map(inv => inv.id === invoice.id ? { ...invoice, updatedAt: new Date().toISOString() } : inv));
+    } else {
+      setInvoices(prev => [...prev, { ...invoice, id: invoice.id || uid(), createdAt: new Date().toISOString() }]);
     }
+    setShowInvoiceModal(false);
+    setEditingInvoice(null);
+    setInvoiceFromLoad(null);
   };
 
   const deleteInvoice = (id) => {
@@ -3679,9 +3586,7 @@ export default function App() {
 
   const markInvoicePaid = (id) => {
     setInvoices(prev => prev.map(inv => 
-      inv.id === id 
-        ? { ...inv, status: 'paid', paidDate: new Date().toISOString().split('T')[0], paidAmount: inv.total }
-        : inv
+      inv.id === id ? { ...inv, status: 'paid', paidDate: new Date().toISOString().split('T')[0], paidAmount: inv.total } : inv
     ));
   };
 
@@ -3936,528 +3841,6 @@ export default function App() {
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 24 }}>
               <button type="button" style={styles.btn('secondary')} onClick={() => { setShowTruckModal(false); setEditingTruck(null); }}>Cancel</button>
               <button type="submit" style={styles.btn('primary')}>{editingTruck ? '💾 Update' : '➕ Add Truck'}</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
-
-  // ============ INVOICE MODAL ============
-  const InvoiceModal = () => {
-    const initialInvoice = invoiceFromLoad || editingInvoice || {
-      id: uid(),
-      invoiceNumber: generateInvoiceNumber(),
-      loadId: '',
-      loadNumber: '',
-      billTo: { name: '', address: '', city: '', state: '', zip: '', email: '', phone: '' },
-      invoiceDate: new Date().toISOString().split('T')[0],
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      terms: 'Net 30',
-      lineItems: [{ description: '', quantity: 1, rate: 0, amount: 0 }],
-      subtotal: 0,
-      taxRate: 0,
-      taxAmount: 0,
-      total: 0,
-      status: 'draft',
-      paidDate: null,
-      paidAmount: 0,
-      notes: '',
-    };
-    
-    const [form, setForm] = useState(initialInvoice);
-    
-    useEffect(() => {
-      if (invoiceFromLoad) {
-        setForm(invoiceFromLoad);
-      } else if (editingInvoice) {
-        setForm(editingInvoice);
-      }
-    }, [invoiceFromLoad?.id, editingInvoice?.id]);
-
-    const updateLineItem = (index, field, value) => {
-      const newItems = [...form.lineItems];
-      newItems[index] = { ...newItems[index], [field]: value };
-      
-      // Auto-calculate amount
-      if (field === 'quantity' || field === 'rate') {
-        newItems[index].amount = (parseFloat(newItems[index].quantity) || 0) * (parseFloat(newItems[index].rate) || 0);
-      }
-      
-      // Recalculate totals
-      const subtotal = newItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-      const taxAmount = subtotal * (parseFloat(form.taxRate) || 0) / 100;
-      
-      setForm({ ...form, lineItems: newItems, subtotal, taxAmount, total: subtotal + taxAmount });
-    };
-
-    const addLineItem = () => {
-      setForm({ ...form, lineItems: [...form.lineItems, { description: '', quantity: 1, rate: 0, amount: 0 }] });
-    };
-
-    const removeLineItem = (index) => {
-      if (form.lineItems.length <= 1) return;
-      const newItems = form.lineItems.filter((_, i) => i !== index);
-      const subtotal = newItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-      const taxAmount = subtotal * (parseFloat(form.taxRate) || 0) / 100;
-      setForm({ ...form, lineItems: newItems, subtotal, taxAmount, total: subtotal + taxAmount });
-    };
-
-    const updateTaxRate = (rate) => {
-      const taxRate = parseFloat(rate) || 0;
-      const taxAmount = form.subtotal * taxRate / 100;
-      setForm({ ...form, taxRate, taxAmount, total: form.subtotal + taxAmount });
-    };
-
-    const handleSubmit = (e) => {
-      e.preventDefault();
-      saveInvoice(form);
-    };
-
-    const getStatusColor = (status) => {
-      switch (status) {
-        case 'draft': return colors.gray400;
-        case 'pending': return colors.yellow;
-        case 'sent': return colors.blue;
-        case 'paid': return colors.green;
-        case 'overdue': return colors.red;
-        default: return colors.gray400;
-      }
-    };
-
-    // Generate PDF Invoice
-    const generatePDF = () => {
-      const printWindow = window.open('', '_blank');
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Invoice ${form.invoiceNumber}</title>
-          <style>
-            * { box-sizing: border-box; margin: 0; padding: 0; }
-            body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; color: #333; }
-            .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
-            .company { font-size: 24px; font-weight: bold; color: #10b981; }
-            .invoice-title { font-size: 32px; color: #333; text-align: right; }
-            .invoice-number { color: #666; text-align: right; }
-            .addresses { display: flex; justify-content: space-between; margin-bottom: 30px; }
-            .address-block { width: 45%; }
-            .address-label { font-weight: bold; color: #666; margin-bottom: 8px; font-size: 12px; text-transform: uppercase; }
-            .address-content { line-height: 1.6; }
-            .details { margin-bottom: 30px; }
-            .details-row { display: flex; gap: 40px; }
-            .detail { margin-bottom: 8px; }
-            .detail-label { color: #666; font-size: 12px; }
-            .detail-value { font-weight: bold; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-            th { background: #f3f4f6; padding: 12px; text-align: left; border-bottom: 2px solid #e5e7eb; font-size: 12px; text-transform: uppercase; color: #666; }
-            td { padding: 12px; border-bottom: 1px solid #e5e7eb; }
-            .amount { text-align: right; }
-            .totals { margin-left: auto; width: 300px; }
-            .total-row { display: flex; justify-content: space-between; padding: 8px 0; }
-            .total-row.grand { font-size: 18px; font-weight: bold; border-top: 2px solid #333; margin-top: 8px; padding-top: 16px; }
-            .notes { margin-top: 40px; padding: 20px; background: #f9fafb; border-radius: 8px; }
-            .notes-label { font-weight: bold; margin-bottom: 8px; }
-            .status { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
-            .status-paid { background: #d1fae5; color: #065f46; }
-            .status-pending { background: #fef3c7; color: #92400e; }
-            .status-draft { background: #e5e7eb; color: #4b5563; }
-            .footer { margin-top: 60px; text-align: center; color: #9ca3af; font-size: 12px; }
-            @media print { body { padding: 20px; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div>
-              <div class="company">BalanceBooks Trucking</div>
-              <div style="color: #666; margin-top: 4px;">Professional Trucking Services</div>
-            </div>
-            <div>
-              <div class="invoice-title">INVOICE</div>
-              <div class="invoice-number">${form.invoiceNumber}</div>
-              <div class="status status-${form.status}" style="margin-top: 8px;">${form.status.toUpperCase()}</div>
-            </div>
-          </div>
-          
-          <div class="addresses">
-            <div class="address-block">
-              <div class="address-label">Bill To</div>
-              <div class="address-content">
-                <strong>${form.billTo.name || 'Customer'}</strong><br>
-                ${form.billTo.address ? form.billTo.address + '<br>' : ''}
-                ${form.billTo.city ? form.billTo.city + ', ' : ''}${form.billTo.state || ''} ${form.billTo.zip || ''}<br>
-                ${form.billTo.email ? form.billTo.email + '<br>' : ''}
-                ${form.billTo.phone || ''}
-              </div>
-            </div>
-            <div class="address-block">
-              <div class="details-row">
-                <div class="detail">
-                  <div class="detail-label">Invoice Date</div>
-                  <div class="detail-value">${form.invoiceDate}</div>
-                </div>
-                <div class="detail">
-                  <div class="detail-label">Due Date</div>
-                  <div class="detail-value">${form.dueDate}</div>
-                </div>
-              </div>
-              <div class="detail" style="margin-top: 16px;">
-                <div class="detail-label">Payment Terms</div>
-                <div class="detail-value">${form.terms}</div>
-              </div>
-              ${form.loadNumber ? `
-              <div class="detail" style="margin-top: 16px;">
-                <div class="detail-label">Load Reference</div>
-                <div class="detail-value">${form.loadNumber}</div>
-              </div>` : ''}
-            </div>
-          </div>
-          
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 50%;">Description</th>
-                <th class="amount">Qty</th>
-                <th class="amount">Rate</th>
-                <th class="amount">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${form.lineItems.map(item => `
-                <tr>
-                  <td>${item.description}</td>
-                  <td class="amount">${item.quantity}</td>
-                  <td class="amount">$${parseFloat(item.rate || 0).toFixed(2)}</td>
-                  <td class="amount">$${parseFloat(item.amount || 0).toFixed(2)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          
-          <div class="totals">
-            <div class="total-row">
-              <span>Subtotal</span>
-              <span>$${parseFloat(form.subtotal || 0).toFixed(2)}</span>
-            </div>
-            ${form.taxRate > 0 ? `
-            <div class="total-row">
-              <span>Tax (${form.taxRate}%)</span>
-              <span>$${parseFloat(form.taxAmount || 0).toFixed(2)}</span>
-            </div>` : ''}
-            <div class="total-row grand">
-              <span>Total Due</span>
-              <span>$${parseFloat(form.total || 0).toFixed(2)}</span>
-            </div>
-          </div>
-          
-          ${form.notes ? `
-          <div class="notes">
-            <div class="notes-label">Notes</div>
-            <div style="white-space: pre-wrap;">${form.notes}</div>
-          </div>` : ''}
-          
-          <div class="footer">
-            <p>Thank you for your business!</p>
-            <p style="margin-top: 8px;">Generated by BalanceBooks Trucking</p>
-          </div>
-        </body>
-        </html>
-      `;
-      
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.onload = () => {
-        printWindow.print();
-      };
-    };
-
-    return (
-      <div style={styles.modal} onClick={() => { setShowInvoiceModal(false); setEditingInvoice(null); setInvoiceFromLoad(null); }}>
-        <div style={{ ...styles.modalContent, maxWidth: 900 }} onClick={e => e.stopPropagation()}>
-          <h2 style={{ color: colors.white, marginBottom: 30, fontSize: 28, display: 'flex', alignItems: 'center', gap: 16 }}>
-            📄 {editingInvoice ? 'Edit Invoice' : 'Create Invoice'}
-            <span style={{ 
-              background: getStatusColor(form.status) + '30',
-              color: getStatusColor(form.status),
-              padding: '6px 16px',
-              borderRadius: 20,
-              fontSize: 14,
-              fontWeight: 600,
-              textTransform: 'uppercase'
-            }}>{form.status}</span>
-          </h2>
-          
-          <form onSubmit={handleSubmit}>
-            {/* Invoice Header */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-              <div>
-                <label style={styles.label}>Invoice #</label>
-                <input 
-                  style={styles.input} 
-                  value={form.invoiceNumber} 
-                  onChange={e => setForm({ ...form, invoiceNumber: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label style={styles.label}>Invoice Date</label>
-                <input 
-                  type="date" 
-                  style={styles.input} 
-                  value={form.invoiceDate} 
-                  onChange={e => setForm({ ...form, invoiceDate: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label style={styles.label}>Due Date</label>
-                <input 
-                  type="date" 
-                  style={styles.input} 
-                  value={form.dueDate} 
-                  onChange={e => setForm({ ...form, dueDate: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label style={styles.label}>Terms</label>
-                <select 
-                  style={styles.select} 
-                  value={form.terms}
-                  onChange={e => {
-                    const terms = e.target.value;
-                    let days = 30;
-                    if (terms === 'Due on Receipt') days = 0;
-                    else if (terms === 'Net 15') days = 15;
-                    else if (terms === 'Net 30') days = 30;
-                    else if (terms === 'Net 45') days = 45;
-                    else if (terms === 'Net 60') days = 60;
-                    const dueDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-                    setForm({ ...form, terms, dueDate });
-                  }}
-                >
-                  <option value="Due on Receipt">Due on Receipt</option>
-                  <option value="Net 15">Net 15</option>
-                  <option value="Net 30">Net 30</option>
-                  <option value="Net 45">Net 45</option>
-                  <option value="Net 60">Net 60</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Bill To */}
-            <div style={{ 
-              background: colors.navyLight, 
-              padding: 20, 
-              borderRadius: 12, 
-              marginBottom: 24,
-              border: `1px solid ${colors.gray700}`
-            }}>
-              <label style={{ ...styles.label, marginBottom: 16, display: 'block' }}>📬 Bill To</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-                <div>
-                  <label style={{ ...styles.label, fontSize: 12 }}>Company/Name *</label>
-                  <input 
-                    style={styles.input} 
-                    value={form.billTo.name} 
-                    onChange={e => setForm({ ...form, billTo: { ...form.billTo, name: e.target.value } })}
-                    placeholder="Customer name"
-                    required
-                  />
-                </div>
-                <div>
-                  <label style={{ ...styles.label, fontSize: 12 }}>Email</label>
-                  <input 
-                    type="email"
-                    style={styles.input} 
-                    value={form.billTo.email} 
-                    onChange={e => setForm({ ...form, billTo: { ...form.billTo, email: e.target.value } })}
-                    placeholder="billing@company.com"
-                  />
-                </div>
-                <div style={{ gridColumn: 'span 2' }}>
-                  <label style={{ ...styles.label, fontSize: 12 }}>Address</label>
-                  <input 
-                    style={styles.input} 
-                    value={form.billTo.address} 
-                    onChange={e => setForm({ ...form, billTo: { ...form.billTo, address: e.target.value } })}
-                    placeholder="Street address"
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 12, gridColumn: 'span 2' }}>
-                  <div>
-                    <label style={{ ...styles.label, fontSize: 12 }}>City</label>
-                    <input 
-                      style={styles.input} 
-                      value={form.billTo.city} 
-                      onChange={e => setForm({ ...form, billTo: { ...form.billTo, city: e.target.value } })}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ ...styles.label, fontSize: 12 }}>State</label>
-                    <input 
-                      style={styles.input} 
-                      value={form.billTo.state} 
-                      onChange={e => setForm({ ...form, billTo: { ...form.billTo, state: e.target.value } })}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ ...styles.label, fontSize: 12 }}>ZIP</label>
-                    <input 
-                      style={styles.input} 
-                      value={form.billTo.zip} 
-                      onChange={e => setForm({ ...form, billTo: { ...form.billTo, zip: e.target.value } })}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Line Items */}
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <label style={styles.label}>📋 Line Items</label>
-                <button type="button" onClick={addLineItem} style={{ ...styles.btn('secondary'), padding: '6px 12px', fontSize: 13 }}>
-                  ➕ Add Line
-                </button>
-              </div>
-              
-              <div style={{ background: colors.navyLight, borderRadius: 12, overflow: 'hidden', border: `1px solid ${colors.gray700}` }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1fr 40px', gap: 8, padding: '12px 16px', background: colors.navyDark, fontSize: 12, color: colors.gray400, fontWeight: 600, textTransform: 'uppercase' }}>
-                  <div>Description</div>
-                  <div style={{ textAlign: 'right' }}>Qty</div>
-                  <div style={{ textAlign: 'right' }}>Rate</div>
-                  <div style={{ textAlign: 'right' }}>Amount</div>
-                  <div></div>
-                </div>
-                
-                {form.lineItems.map((item, index) => (
-                  <div key={index} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1fr 40px', gap: 8, padding: '12px 16px', borderTop: `1px solid ${colors.gray700}` }}>
-                    <input 
-                      style={{ ...styles.input, marginBottom: 0 }}
-                      value={item.description}
-                      onChange={e => updateLineItem(index, 'description', e.target.value)}
-                      placeholder="Description"
-                    />
-                    <input 
-                      type="number"
-                      style={{ ...styles.input, marginBottom: 0, textAlign: 'right' }}
-                      value={item.quantity}
-                      onChange={e => updateLineItem(index, 'quantity', e.target.value)}
-                    />
-                    <input 
-                      type="number"
-                      step="0.01"
-                      style={{ ...styles.input, marginBottom: 0, textAlign: 'right' }}
-                      value={item.rate}
-                      onChange={e => updateLineItem(index, 'rate', e.target.value)}
-                    />
-                    <div style={{ 
-                      background: colors.navyDark, 
-                      padding: '12px 16px', 
-                      borderRadius: 10, 
-                      textAlign: 'right',
-                      color: colors.green,
-                      fontWeight: 600
-                    }}>
-                      {formatCurrency(item.amount || 0)}
-                    </div>
-                    <button 
-                      type="button" 
-                      onClick={() => removeLineItem(index)}
-                      style={{ 
-                        background: 'transparent', 
-                        border: 'none', 
-                        color: form.lineItems.length > 1 ? colors.red : colors.gray600, 
-                        cursor: form.lineItems.length > 1 ? 'pointer' : 'not-allowed',
-                        fontSize: 16
-                      }}
-                      disabled={form.lineItems.length <= 1}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Totals */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
-              <div style={{ width: 300 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', color: colors.gray300 }}>
-                  <span>Subtotal</span>
-                  <span>{formatCurrency(form.subtotal)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', color: colors.gray300 }}>
-                  <span>Tax (%)</span>
-                  <input 
-                    type="number"
-                    step="0.1"
-                    style={{ ...styles.input, width: 80, marginBottom: 0, textAlign: 'right' }}
-                    value={form.taxRate}
-                    onChange={e => updateTaxRate(e.target.value)}
-                  />
-                </div>
-                {form.taxRate > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', color: colors.gray300 }}>
-                    <span>Tax Amount</span>
-                    <span>{formatCurrency(form.taxAmount)}</span>
-                  </div>
-                )}
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  padding: '16px 0', 
-                  borderTop: `2px solid ${colors.gray600}`,
-                  marginTop: 8,
-                  color: colors.white,
-                  fontWeight: 700,
-                  fontSize: 20
-                }}>
-                  <span>Total</span>
-                  <span style={{ color: colors.green }}>{formatCurrency(form.total)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Status & Notes */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 24, marginBottom: 24 }}>
-              <div>
-                <label style={styles.label}>Status</label>
-                <select 
-                  style={styles.select}
-                  value={form.status}
-                  onChange={e => setForm({ ...form, status: e.target.value })}
-                >
-                  <option value="draft">Draft</option>
-                  <option value="pending">Pending</option>
-                  <option value="sent">Sent</option>
-                  <option value="paid">Paid</option>
-                  <option value="overdue">Overdue</option>
-                </select>
-              </div>
-              <div>
-                <label style={styles.label}>Notes</label>
-                <textarea 
-                  style={{ ...styles.input, height: 80, resize: 'vertical' }}
-                  value={form.notes}
-                  onChange={e => setForm({ ...form, notes: e.target.value })}
-                  placeholder="Additional notes or payment instructions..."
-                />
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => { setShowInvoiceModal(false); setEditingInvoice(null); setInvoiceFromLoad(null); }} style={styles.btn('secondary')}>
-                Cancel
-              </button>
-              <button type="button" onClick={generatePDF} style={styles.btn('secondary')}>
-                🖨️ Print/PDF
-              </button>
-              <button type="submit" style={styles.btn('primary')}>
-                💾 Save Invoice
-              </button>
             </div>
           </form>
         </div>
