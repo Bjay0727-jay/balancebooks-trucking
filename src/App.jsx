@@ -266,6 +266,8 @@ const formatCentsPerMile = (dollars) => {
 const useMultiSelect = (items = []) => {
   const [selectedIds, setSelectedIds] = useState(new Set());
 
+  const selectedCount = selectedIds.size;
+
   const allSelected = useMemo(() => {
     if (items.length === 0) return false;
     return items.every(item => selectedIds.has(item.id));
@@ -273,59 +275,59 @@ const useMultiSelect = (items = []) => {
 
   const someSelected = useMemo(() => {
     if (items.length === 0) return false;
-    const selectedCount = items.filter(item => selectedIds.has(item.id)).length;
-    return selectedCount > 0 && selectedCount < items.length;
+    const count = items.filter(item => selectedIds.has(item.id)).length;
+    return count > 0 && count < items.length;
   }, [items, selectedIds]);
 
-  const toggleItem = useCallback((id) => {
+  const toggle = (id) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  }, []);
+  };
 
-  // Check if all items in a list are selected (supports filtered lists)
-  const isAllSelected = useCallback((itemList) => {
+  const toggleItem = toggle; // Alias
+
+  const isAllSelected = (itemList) => {
     const checkItems = itemList || items;
-    if (checkItems.length === 0) return false;
+    if (!checkItems || checkItems.length === 0) return false;
     return checkItems.every(item => selectedIds.has(item.id));
-  }, [items, selectedIds]);
+  };
 
-  // Toggle all items in a list (supports filtered lists)
-  const toggleAll = useCallback((itemList) => {
+  const toggleAll = (itemList) => {
     const checkItems = itemList || items;
+    if (!checkItems || checkItems.length === 0) return;
     const allChecked = checkItems.every(item => selectedIds.has(item.id));
-    if (allChecked) {
-      setSelectedIds(prev => {
-        const next = new Set(prev);
-        checkItems.forEach(item => next.delete(item.id));
-        return next;
-      });
-    } else {
-      setSelectedIds(prev => {
-        const next = new Set(prev);
-        checkItems.forEach(item => next.add(item.id));
-        return next;
-      });
-    }
-  }, [items, selectedIds]);
-
-  // Alias for toggle
-  const toggle = useCallback((id) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (allChecked) {
+        checkItems.forEach(item => next.delete(item.id));
+      } else {
+        checkItems.forEach(item => next.add(item.id));
+      }
       return next;
     });
-  }, []);
+  };
 
-  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
-  const isSelected = useCallback((id) => selectedIds.has(id), [selectedIds]);
+  const clearSelection = () => setSelectedIds(new Set());
+  
+  const isSelected = (id) => selectedIds.has(id);
 
-  return { selectedIds, selectedCount: selectedIds.size, allSelected, someSelected, isSelected, isAllSelected, toggle, toggleItem, toggleAll, clearSelection, setSelectedIds };
+  return { 
+    selectedIds, 
+    selectedCount, 
+    allSelected, 
+    someSelected, 
+    isSelected, 
+    isAllSelected, 
+    toggle, 
+    toggleItem, 
+    toggleAll, 
+    clearSelection, 
+    setSelectedIds 
+  };
 };
 
 // ============ EXPORT TO CSV ============
