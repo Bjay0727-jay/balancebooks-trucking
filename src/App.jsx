@@ -786,6 +786,7 @@ export default function App() {
   const [drivers, setDrivers] = useState([]);
   const [trucks, setTrucks] = useState([]);
   const [invoices, setInvoices] = useState([]);
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('all');
 
   // Invoice Modal state
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -1305,6 +1306,72 @@ export default function App() {
     totalMiles: iftaSummary.reduce((s, d) => s + d.miles, 0),
     totalGallons: iftaSummary.reduce((s, d) => s + d.gallons, 0),
   }), [iftaSummary]);
+
+  // ============ INVOICE STATS ============
+  const invoiceStats = useMemo(() => {
+    const stats = {
+      total: invoices.length,
+      draft: invoices.filter(i => i.status === 'draft').length,
+      pending: invoices.filter(i => i.status === 'pending' || i.status === 'sent').length,
+      paid: invoices.filter(i => i.status === 'paid').length,
+      overdue: 0,
+      totalOutstanding: 0,
+      totalPaid: 0,
+    };
+    
+    const today = new Date();
+    invoices.forEach(inv => {
+      if (inv.status === 'paid') {
+        stats.totalPaid += parseFloat(inv.total) || 0;
+      } else {
+        stats.totalOutstanding += parseFloat(inv.total) || 0;
+        if (new Date(inv.dueDate) < today && inv.status !== 'draft') {
+          stats.overdue++;
+        }
+      }
+    });
+    
+    return stats;
+  }, [invoices]);
+
+  // Invoice summary for dashboard
+  const invoiceSummary = useMemo(() => {
+    const today = new Date();
+    let outstanding = 0;
+    let overdue = 0;
+    let overdueAmount = 0;
+    
+    invoices.forEach(inv => {
+      if (inv.status !== 'paid' && inv.status !== 'draft') {
+        outstanding += parseFloat(inv.total) || 0;
+        if (new Date(inv.dueDate) < today) {
+          overdue++;
+          overdueAmount += parseFloat(inv.total) || 0;
+        }
+      }
+    });
+    
+    return { outstanding, overdue, overdueAmount };
+  }, [invoices]);
+
+  // Filtered invoices based on status filter
+  const filteredInvoices = useMemo(() => {
+    let filtered = [...invoices];
+    
+    if (invoiceStatusFilter !== 'all') {
+      if (invoiceStatusFilter === 'overdue') {
+        const today = new Date();
+        filtered = filtered.filter(inv => 
+          new Date(inv.dueDate) < today && inv.status !== 'paid' && inv.status !== 'draft'
+        );
+      } else {
+        filtered = filtered.filter(inv => inv.status === invoiceStatusFilter);
+      }
+    }
+    
+    // Sort by date descending
+    return filtered.sort((a, b) => new Date(b.invoiceDate) - new Date(a.invoiceDate));
+  }, [invoices, invoiceStatusFilter]);
 
   // ============ NAV ITEMS ============
   const navItems = [
@@ -2380,26 +2447,6 @@ export default function App() {
 
   // ============ DASHBOARD VIEW ============
   const renderDashboard = () => {
-    // Calculate invoice stats for dashboard
-    const invoiceSummary = useMemo(() => {
-      const today = new Date();
-      let outstanding = 0;
-      let overdue = 0;
-      let overdueAmount = 0;
-      
-      invoices.forEach(inv => {
-        if (inv.status !== 'paid' && inv.status !== 'draft') {
-          outstanding += parseFloat(inv.total) || 0;
-          if (new Date(inv.dueDate) < today) {
-            overdue++;
-            overdueAmount += parseFloat(inv.total) || 0;
-          }
-        }
-      });
-      
-      return { outstanding, overdue, overdueAmount };
-    }, [invoices]);
-
     return (
     <>
       <div style={styles.header}>
@@ -2695,54 +2742,6 @@ export default function App() {
 
   // ============ INVOICES VIEW ============
   const renderInvoices = () => {
-    const [statusFilter, setStatusFilter] = useState('all');
-    
-    // Calculate invoice stats
-    const invoiceStats = useMemo(() => {
-      const stats = {
-        total: invoices.length,
-        draft: invoices.filter(i => i.status === 'draft').length,
-        pending: invoices.filter(i => i.status === 'pending' || i.status === 'sent').length,
-        paid: invoices.filter(i => i.status === 'paid').length,
-        overdue: 0,
-        totalOutstanding: 0,
-        totalPaid: 0,
-      };
-      
-      const today = new Date();
-      invoices.forEach(inv => {
-        if (inv.status === 'paid') {
-          stats.totalPaid += parseFloat(inv.total) || 0;
-        } else {
-          stats.totalOutstanding += parseFloat(inv.total) || 0;
-          if (new Date(inv.dueDate) < today && inv.status !== 'draft') {
-            stats.overdue++;
-          }
-        }
-      });
-      
-      return stats;
-    }, [invoices]);
-
-    // Filter invoices
-    const filteredInvoices = useMemo(() => {
-      let filtered = [...invoices];
-      
-      if (statusFilter !== 'all') {
-        if (statusFilter === 'overdue') {
-          const today = new Date();
-          filtered = filtered.filter(inv => 
-            new Date(inv.dueDate) < today && inv.status !== 'paid' && inv.status !== 'draft'
-          );
-        } else {
-          filtered = filtered.filter(inv => inv.status === statusFilter);
-        }
-      }
-      
-      // Sort by date descending
-      return filtered.sort((a, b) => new Date(b.invoiceDate) - new Date(a.invoiceDate));
-    }, [invoices, statusFilter]);
-
     const getStatusColor = (status) => {
       switch (status) {
         case 'draft': return colors.gray400;
@@ -2777,19 +2776,19 @@ export default function App() {
 
         {/* Invoice Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 24 }}>
-          <div style={{ ...styles.statCard, cursor: 'pointer', border: statusFilter === 'all' ? `2px solid ${colors.teal}` : 'none' }} onClick={() => setStatusFilter('all')}>
+          <div style={{ ...styles.statCard, cursor: 'pointer', border: invoiceStatusFilter === 'all' ? `2px solid ${colors.teal}` : 'none' }} onClick={() => setInvoiceStatusFilter('all')}>
             <div style={styles.statLabel}>Total Invoices</div>
             <div style={styles.statValue(colors.white)}>{invoiceStats.total}</div>
           </div>
-          <div style={{ ...styles.statCard, cursor: 'pointer', border: statusFilter === 'pending' ? `2px solid ${colors.yellow}` : 'none' }} onClick={() => setStatusFilter('pending')}>
+          <div style={{ ...styles.statCard, cursor: 'pointer', border: invoiceStatusFilter === 'pending' ? `2px solid ${colors.yellow}` : 'none' }} onClick={() => setInvoiceStatusFilter('pending')}>
             <div style={styles.statLabel}>Pending</div>
             <div style={styles.statValue(colors.yellow)}>{invoiceStats.pending}</div>
           </div>
-          <div style={{ ...styles.statCard, cursor: 'pointer', border: statusFilter === 'paid' ? `2px solid ${colors.green}` : 'none' }} onClick={() => setStatusFilter('paid')}>
+          <div style={{ ...styles.statCard, cursor: 'pointer', border: invoiceStatusFilter === 'paid' ? `2px solid ${colors.green}` : 'none' }} onClick={() => setInvoiceStatusFilter('paid')}>
             <div style={styles.statLabel}>Paid</div>
             <div style={styles.statValue(colors.green)}>{invoiceStats.paid}</div>
           </div>
-          <div style={{ ...styles.statCard, cursor: 'pointer', border: statusFilter === 'overdue' ? `2px solid ${colors.red}` : 'none' }} onClick={() => setStatusFilter('overdue')}>
+          <div style={{ ...styles.statCard, cursor: 'pointer', border: invoiceStatusFilter === 'overdue' ? `2px solid ${colors.red}` : 'none' }} onClick={() => setInvoiceStatusFilter('overdue')}>
             <div style={styles.statLabel}>Overdue</div>
             <div style={styles.statValue(colors.red)}>{invoiceStats.overdue}</div>
           </div>
@@ -2840,7 +2839,7 @@ export default function App() {
               {filteredInvoices.length === 0 ? (
                 <tr>
                   <td colSpan="9" style={{ ...styles.td, textAlign: 'center', padding: 40, color: colors.gray400 }}>
-                    {statusFilter !== 'all' ? `No ${statusFilter} invoices` : 'No invoices yet. Create your first invoice!'}
+                    {invoiceStatusFilter !== 'all' ? `No ${invoiceStatusFilter} invoices` : 'No invoices yet. Create your first invoice!'}
                   </td>
                 </tr>
               ) : (
