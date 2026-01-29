@@ -4342,11 +4342,14 @@ export default function App() {
              date.getFullYear() === today.getFullYear();
     };
     
-    // Get driver name helper
+    // Get driver name helper - drivers have firstName/lastName fields
     const getDriverName = (driverId) => {
       if (!driverId) return null;
-      const driver = drivers.find(d => d.id === driverId);
-      return driver?.name || null;
+      // Use string comparison in case of type mismatch
+      const driver = drivers.find(d => String(d.id) === String(driverId));
+      if (!driver) return null;
+      const name = `${driver.firstName || ''} ${driver.lastName || ''}`.trim();
+      return name || null;
     };
     
     // Build calendar grid for month view
@@ -4845,7 +4848,7 @@ export default function App() {
                 {/* Truck Assignment */}
                 {(() => {
                   if (!selectedLoad.truckId) return null;
-                  const truck = trucks.find(t => t.id === selectedLoad.truckId);
+                  const truck = trucks.find(t => String(t.id) === String(selectedLoad.truckId));
                   if (truck) {
                     return (
                       <div style={{ background: colors.navyDark, padding: 16, borderRadius: 12 }}>
